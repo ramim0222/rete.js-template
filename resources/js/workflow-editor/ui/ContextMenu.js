@@ -1,50 +1,53 @@
 export class ContextMenu {
     constructor() {
         this.menu = null;
-        this.clickHandler = this.handleClick.bind(this);
+        this.setupMenu();
+    }
+
+    setupMenu() {
+        // Create menu element if it doesn't exist
+        if (!this.menu) {
+            this.menu = document.createElement('div');
+            this.menu.className = 'fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[160px] hidden';
+            document.body.appendChild(this.menu);
+
+            // Hide menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (this.menu && !this.menu.contains(e.target)) {
+                    this.hide();
+                }
+            });
+        }
     }
 
     show(x, y, items) {
-        this.hide(); // Hide any existing menu
+        this.menu.innerHTML = items.map(item => `
+            <button class="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center space-x-2">
+                <span>${item.icon}</span>
+                <span>${item.label}</span>
+            </button>
+        `).join('');
 
-        // Create menu element
-        this.menu = document.createElement('div');
-        this.menu.className = 'context-menu';
-        this.menu.style.left = `${x}px`;
-        this.menu.style.top = `${y}px`;
-
-        // Add menu items
-        items.forEach(item => {
-            const menuItem = document.createElement('div');
-            menuItem.className = 'context-menu-item';
-            menuItem.textContent = item.label;
-            menuItem.addEventListener('click', () => {
+        // Add click handlers
+        const buttons = this.menu.querySelectorAll('button');
+        items.forEach((item, index) => {
+            buttons[index].addEventListener('click', () => {
                 item.action();
                 this.hide();
             });
-            this.menu.appendChild(menuItem);
         });
 
-        // Add to document
-        document.body.appendChild(this.menu);
+        // Position menu
+        this.menu.style.left = `${x}px`;
+        this.menu.style.top = `${y}px`;
 
-        // Add global click handler to hide menu
-        setTimeout(() => {
-            document.addEventListener('click', this.clickHandler);
-        }, 0);
-    }
-
-    handleClick(event) {
-        if (this.menu && !this.menu.contains(event.target)) {
-            this.hide();
-        }
+        // Show menu
+        this.menu.classList.remove('hidden');
     }
 
     hide() {
         if (this.menu) {
-            this.menu.remove();
-            this.menu = null;
-            document.removeEventListener('click', this.clickHandler);
+            this.menu.classList.add('hidden');
         }
     }
 }

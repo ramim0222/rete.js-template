@@ -27,7 +27,7 @@ export class WorkflowEditor {
         this.editor = null;
         this.area = null;
         this.connection = null;
-        this.socket = socket;
+        this.socket = new StatusSocket();
         this.propertiesPanel = new PropertiesPanel();
         this.contextMenu = new ContextMenu();
         this.nodes = new Map();
@@ -36,10 +36,10 @@ export class WorkflowEditor {
 
     async initialize() {
         try {
-            // Create editor instance with defined types
+            // Create editor instance
             this.editor = new NodeEditor();
 
-            // Setup area plugin with proper scope
+            // Setup area plugin
             this.area = new AreaPlugin(this.container);
 
             // Add classic preset for area extensions
@@ -47,12 +47,12 @@ export class WorkflowEditor {
                 accumulating: AreaExtensions.accumulateOnCtrl()
             });
 
-            // Setup connection plugin with proper scope
+            // Setup connection plugin
             this.connection = new ConnectionPlugin();
 
             // Add connection preset
             this.connection.addPreset(() => ({
-                createConnection: () => new Connection(),
+                createConnection: () => new ClassicPreset.Connection(),
                 validate: ({ input, output }) => input.socket === output.socket
             }));
 
@@ -64,12 +64,12 @@ export class WorkflowEditor {
             this.setupEventListeners();
 
             // Load initial data
-            this.loadWorkflowData();
+            await this.loadWorkflowData();
 
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Workflow Editor:', error);
-            throw error; // Re-throw to see the full error in console
+            throw error;
         }
     }
 
@@ -77,24 +77,41 @@ export class WorkflowEditor {
         // Right-click context menu
         this.area.addPipe(context => {
             if (context.type === 'contextmenu') {
-                context.data.event.preventDefault();
-                this.showContextMenu(context.data.event);
+                const event = context.data.event;
+                event.preventDefault();
+                event.stopPropagation();
+
+                // Get position relative to the editor
+                const rect = this.container.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                // Convert screen coordinates to editor coordinates
+                const { k: zoom, x: panX, y: panY } = this.area.area.transform;
+                const editorX = (x - panX) / zoom;
+                const editorY = (y - panY) / zoom;
+
+                // Show context menu
+                this.contextMenu.show(event.clientX, event.clientY, [
+                    {
+                        label: '+ Add Status',
+                        icon: '📝',
+                        action: () => this.addStatusNode(editorX, editorY)
+                    }
+                ]);
             }
             return context;
         });
 
         // Node selection
         this.area.addPipe(context => {
-            if (context.type === 'nodeselected') {
-                this.onNodeSelected(context.data.id);
-            }
-            return context;
-        });
-
-        // Connection events
-        this.area.addPipe(context => {
-            if (context.type === 'connectioncreated') {
-                this.onConnectionCreated(context.data);
+            if (context.type === 'nodepicked') {
+                const nodeData = this.nodes.get(context.data.id);
+                if (nodeData) {
+                    this.propertiesPanel.show(nodeData.data, (updatedData) => {
+                        this.updateNodeData(context.data.id, updatedData);
+                    });
+                }
             }
             return context;
         });
@@ -104,44 +121,32 @@ export class WorkflowEditor {
     }
 
     setupToolbarEvents() {
-        document.getElementById('save-workflow')?.addEventListener('click', () => {
-            this.saveWorkflow();
-        });
+        const saveButton = document.getElementById('save-workflow');
+        if (saveButton) {
+            saveButton.addEventListener('click', () => this.saveWorkflow());
+        }
 
-        document.getElementById('reset-workflow')?.addEventListener('click', () => {
-            this.resetWorkflow();
-        });
-    }
-
-    showContextMenu(event) {
-        const rect = this.container.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        this.contextMenu.show(event.clientX, event.clientY, [
-            {
-                label: '+ Add Status',
-                icon: '📝',
-                action: () => this.addStatusNode(x, y)
-            }
-        ]);
+        const resetButton = document.getElementById('reset-workflow');
+        if (resetButton) {
+            resetButton.addEventListener('click', () => this.resetWorkflow());
+        }
     }
 
     async addStatusNode(x, y) {
-        const nodeId = `status_${this.nodeIdCounter++}`;
-        const statusData = {
-            id: nodeId,
-            name: `Status ${this.nodeIdCounter - 1}`,
-            description: 'New status description',
-            color_code: '#3B82F6',
-            allowed_roles: ['admin']
-        };
-
         try {
-            const node = new Node(this.socket);
-            node.id = nodeId;
+            const nodeId = `status_${this.nodeIdCounter++}`;
+            const statusData = {
+                id: nodeId,
+                name: `Status ${this.nodeIdCounter - 1}`,
+                description: 'New status description',
+                color_code: '#3B82F6',
+                allowed_roles: ['admin']
+            };
 
-            // Add the node to the editor
+            // Create new node
+            const node = new StatusNode(nodeId, statusData, this.socket);
+
+            // Add node to editor
             await this.editor.addNode(node);
 
             // Position the node
@@ -150,7 +155,7 @@ export class WorkflowEditor {
             // Store node data
             this.nodes.set(nodeId, { node, data: statusData });
 
-            // Automatically open properties panel
+            // Show properties panel
             this.propertiesPanel.show(statusData, (updatedData) => {
                 this.updateNodeData(nodeId, updatedData);
             });
@@ -158,15 +163,6 @@ export class WorkflowEditor {
             console.log('Status node added:', nodeId);
         } catch (error) {
             console.error('Failed to add status node:', error);
-        }
-    }
-
-    onNodeSelected(nodeId) {
-        const nodeData = this.nodes.get(nodeId);
-        if (nodeData) {
-            this.propertiesPanel.show(nodeData.data, (updatedData) => {
-                this.updateNodeData(nodeId, updatedData);
-            });
         }
     }
 
@@ -179,62 +175,30 @@ export class WorkflowEditor {
         const nodeData = this.nodes.get(nodeId);
         if (nodeData) {
             nodeData.data = { ...nodeData.data, ...newData };
+            nodeData.node.label = newData.name;
             this.nodes.set(nodeId, nodeData);
-
-            // Update visual representation
-            this.updateNodeVisual(nodeId);
-        }
-    }
-
-    updateNodeVisual(nodeId) {
-        const nodeData = this.nodes.get(nodeId);
-        if (nodeData) {
-            // Update the node's label and re-render
-            nodeData.node.label = nodeData.data.name;
-            nodeData.node.data = nodeData.data;
-
-            // Force re-render of the node
-            this.area.update('node', nodeData.node.id);
+            this.area.update('node', nodeId);
         }
     }
 
     async deleteNode(nodeId) {
         try {
-            const nodeData = this.nodes.get(nodeId);
-            if (nodeData) {
-                await this.editor.removeNode(nodeData.node.id);
-                this.nodes.delete(nodeId);
-                console.log('Node deleted:', nodeId);
-            }
+            await this.editor.removeNode(nodeId);
+            this.nodes.delete(nodeId);
         } catch (error) {
             console.error('Failed to delete node:', error);
         }
     }
 
-    onConnectionCreated(connection) {
-        console.log('Connection created:', connection);
-    }
-
-    customizeNode(context) {
-        return context;
-    }
-
-    customizeConnection(context) {
-        return context;
-    }
-
-    loadWorkflowData() {
-        // Get data from Livewire component
+    async loadWorkflowData() {
         const statusesData = this.container.dataset.statuses;
         const transitionsData = this.container.dataset.transitions;
 
         if (statusesData) {
             try {
                 const statuses = JSON.parse(statusesData);
-                if (statuses.length > 0) {
-                    this.loadStatuses(statuses);
-                } else {
-                    console.log('No existing statuses found');
+                for (const status of statuses) {
+                    await this.addStatusNode(status.position_x || 100, status.position_y || 100);
                 }
             } catch (error) {
                 console.error('Failed to parse statuses data:', error);
@@ -242,35 +206,12 @@ export class WorkflowEditor {
         }
     }
 
-    async loadStatuses(statuses) {
-        for (const status of statuses) {
-            const nodeId = `status_${status.id}`;
-
-            try {
-                const node = new StatusNode(nodeId, status, this.socket);
-                await this.editor.addNode(node);
-                await this.area.translate(node.id, {
-                    x: status.position_x || 100,
-                    y: status.position_y || 100
-                });
-
-                this.nodes.set(nodeId, { node, data: status });
-
-                // Update counter to avoid ID conflicts
-                if (status.id >= this.nodeIdCounter) {
-                    this.nodeIdCounter = status.id + 1;
-                }
-
-                console.log('Loaded status node:', status.name);
-            } catch (error) {
-                console.error('Failed to load status:', status.name, error);
-            }
-        }
-    }
-
     saveWorkflow() {
         const workflowData = {
-            statuses: Array.from(this.nodes.values()).map(({ data }) => data),
+            statuses: Array.from(this.nodes.values()).map(({ data }) => ({
+                ...data,
+                position: this.area.nodeViews.get(data.id)?.position
+            })),
             transitions: this.getTransitions()
         };
 
@@ -278,23 +219,13 @@ export class WorkflowEditor {
         if (window.Livewire) {
             window.Livewire.emit('saveWorkflow', workflowData);
         }
-
-        console.log('Saving workflow:', workflowData);
     }
 
     getTransitions() {
-        const transitions = [];
-        const connections = this.editor.getConnections();
-
-        connections.forEach(connection => {
-            transitions.push({
-                from_status_id: connection.source,
-                to_status_id: connection.target,
-                condition_expression: null
-            });
-        });
-
-        return transitions;
+        return Array.from(this.editor.getConnections()).map(conn => ({
+            from_status_id: conn.source,
+            to_status_id: conn.target
+        }));
     }
 
     resetWorkflow() {

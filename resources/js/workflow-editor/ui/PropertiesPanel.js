@@ -1,177 +1,107 @@
 export class PropertiesPanel {
     constructor() {
         this.panel = document.getElementById('properties-panel');
-        this.titleElement = document.getElementById('panel-title');
-        this.contentElement = document.getElementById('panel-content');
-        this.currentCallback = null;
+        this.content = document.getElementById('panel-content');
         this.currentData = null;
-
+        this.onSave = null;
         this.setupEventListeners();
     }
 
     setupEventListeners() {
         // Save button
-        document.getElementById('save-properties')?.addEventListener('click', () => {
-            this.saveProperties();
-        });
+        const saveButton = document.getElementById('save-properties');
+        if (saveButton) {
+            saveButton.addEventListener('click', () => this.save());
+        }
 
         // Cancel button
-        document.getElementById('cancel-properties')?.addEventListener('click', () => {
-            this.hide();
-        });
-
-        // Close panel when clicking outside
-        document.addEventListener('click', (e) => {
-            if (this.panel && !this.panel.contains(e.target) && this.panel.style.display !== 'none') {
-                // Don't close if clicking on a node or canvas
-                if (!e.target.closest('.status-node') && !e.target.closest('#workflow-editor')) {
-                    this.hide();
-                }
-            }
-        });
+        const cancelButton = document.getElementById('cancel-properties');
+        if (cancelButton) {
+            cancelButton.addEventListener('click', () => this.hide());
+        }
     }
 
-    show(data, callback) {
+    show(data, onSave) {
         this.currentData = { ...data };
-        this.currentCallback = callback;
+        this.onSave = onSave;
 
-        this.titleElement.textContent = 'Status Properties';
-        this.renderForm();
-
-        this.panel.classList.remove('hidden');
-        this.panel.style.transform = 'translate(0, -50%)';
-    }
-
-    hide() {
-        this.panel.classList.add('hidden');
-        this.panel.style.transform = 'translate(100%, -50%)';
-        this.currentCallback = null;
-        this.currentData = null;
-    }
-
-    renderForm() {
-        const roles = ['admin', 'manager', 'finance', 'procurement', 'user'];
-        const currentRoles = this.currentData.allowed_roles || [];
-
-        this.contentElement.innerHTML = `
+        // Update panel content
+        this.content.innerHTML = `
             <div class="space-y-4">
-                <!-- Status Name -->
                 <div>
-                    <label for="status-name" class="block text-sm font-medium text-gray-700 mb-1">
-                        Status Name
-                    </label>
-                    <input
-                        type="text"
-                        id="status-name"
-                        value="${this.currentData.name || ''}"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter status name"
-                    />
+                    <label class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="status-name" value="${data.name}"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
-
-                <!-- Description -->
                 <div>
-                    <label for="status-description" class="block text-sm font-medium text-gray-700 mb-1">
-                        Description
-                    </label>
-                    <textarea
-                        id="status-description"
-                        rows="3"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter description"
-                    >${this.currentData.description || ''}</textarea>
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="status-description" rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">${data.description || ''}</textarea>
                 </div>
-
-                <!-- Color -->
                 <div>
-                    <label for="status-color" class="block text-sm font-medium text-gray-700 mb-1">
-                        Color
-                    </label>
-                    <input
-                        type="color"
-                        id="status-color"
-                        value="${this.currentData.color_code || '#3B82F6'}"
-                        class="w-full h-10 p-1 border border-gray-300 rounded-md"
-                    />
+                    <label class="block text-sm font-medium text-gray-700">Color</label>
+                    <input type="color" id="status-color" value="${data.color_code}"
+                           class="mt-1 block rounded-md border-gray-300 shadow-sm h-10 w-full">
                 </div>
-
-                <!-- Roles -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Allowed Roles
-                    </label>
-                    <div class="space-y-2">
-                        ${roles.map(role => `
-                            <label class="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    value="${role}"
-                                    class="role-checkbox h-4 w-4 text-blue-600 rounded border-gray-300"
-                                    ${currentRoles.includes(role) ? 'checked' : ''}
-                                />
-                                <span class="ml-2 text-sm text-gray-700">${role.charAt(0).toUpperCase() + role.slice(1)}</span>
-                            </label>
-                        `).join('')}
-                    </div>
+                    <label class="block text-sm font-medium text-gray-700">Allowed Roles</label>
+                    <select id="status-roles" multiple class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="admin" ${data.allowed_roles.includes('admin') ? 'selected' : ''}>Admin</option>
+                        <option value="manager" ${data.allowed_roles.includes('manager') ? 'selected' : ''}>Manager</option>
+                        <option value="user" ${data.allowed_roles.includes('user') ? 'selected' : ''}>User</option>
+                    </select>
                 </div>
-
-                <!-- Quick Actions -->
-                <div class="pt-2 border-t border-gray-200">
-                    <button
-                        type="button"
-                        id="delete-status"
-                        class="text-red-600 hover:text-red-800 text-sm font-medium"
-                    >
+                <div class="pt-4 border-t border-gray-200">
+                    <button type="button" id="delete-status" class="text-red-600 hover:text-red-800 text-sm font-medium">
                         Delete Status
                     </button>
                 </div>
             </div>
         `;
 
-        // Setup delete button
-        document.getElementById('delete-status')?.addEventListener('click', () => {
-            this.deleteStatus();
+        // Add delete handler
+        const deleteButton = document.getElementById('delete-status');
+        if (deleteButton) {
+            deleteButton.addEventListener('click', () => this.deleteStatus());
+        }
+
+        // Show panel with animation
+        this.panel.classList.remove('hidden');
+        this.panel.classList.add('block');
+        requestAnimationFrame(() => {
+            this.panel.style.transform = 'translate(0, -50%)';
         });
     }
 
-    saveProperties() {
-        const name = document.getElementById('status-name')?.value?.trim();
-        const description = document.getElementById('status-description')?.value?.trim();
-        const colorCode = document.getElementById('status-color')?.value;
-        const selectedRoles = Array.from(document.querySelectorAll('.role-checkbox:checked'))
-            .map(checkbox => checkbox.value);
+    hide() {
+        // Hide with animation
+        this.panel.style.transform = 'translate(100%, -50%)';
+        setTimeout(() => {
+            this.panel.classList.remove('block');
+            this.panel.classList.add('hidden');
+            this.currentData = null;
+            this.onSave = null;
+        }, 300);
+    }
 
-        if (!name) {
-            alert('Status name is required');
-            return;
-        }
-
-        if (selectedRoles.length === 0) {
-            alert('At least one role must be selected');
-            return;
-        }
+    save() {
+        if (!this.currentData || !this.onSave) return;
 
         const updatedData = {
             ...this.currentData,
-            name,
-            description,
-            color_code: colorCode,
-            allowed_roles: selectedRoles
+            name: document.getElementById('status-name').value,
+            description: document.getElementById('status-description').value,
+            color_code: document.getElementById('status-color').value,
+            allowed_roles: Array.from(document.getElementById('status-roles').selectedOptions).map(option => option.value)
         };
 
-        if (this.currentCallback) {
-            this.currentCallback(updatedData);
-        }
-
+        this.onSave(updatedData);
         this.hide();
     }
 
     deleteStatus() {
         if (confirm('Are you sure you want to delete this status?')) {
-            // Emit delete event
-            if (this.currentCallback) {
-                this.currentCallback({ ...this.currentData, _delete: true });
-            }
+            this.onSave({ ...this.currentData, _delete: true });
             this.hide();
         }
     }
