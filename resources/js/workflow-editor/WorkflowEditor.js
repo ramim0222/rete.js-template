@@ -1,4 +1,4 @@
-import { createEditor, ClassicPreset } from 'rete';
+import { NodeEditor } from 'rete';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
 import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
 import { RenderPlugin, Presets as RenderPresets } from 'rete-render-utils';
@@ -21,10 +21,10 @@ export class WorkflowEditor {
         this.nodeIdCounter = 1;
     }
 
-    async init() {
+    async initialize() {
         try {
-            // Create editor instance
-            this.editor = await createEditor();
+            // Create editor instance - use NodeEditor instead of createEditor
+            this.editor = new NodeEditor();
 
             // Setup area plugin (for positioning and visual management)
             this.area = new AreaPlugin(this.container);
@@ -38,18 +38,23 @@ export class WorkflowEditor {
 
             // Setup render plugin (for visual rendering)
             this.render = new RenderPlugin();
-            this.render.addPreset(RenderPresets.classic.setup());
+            const { contextMenu } = this.render.addPreset(RenderPresets.classic.setup({
+                customize: {
+                    node: (context) => this.customizeNode(context),
+                    connection: (context) => this.customizeConnection(context)
+                }
+            }));
 
             // Use plugins
-            await this.editor.use(this.area);
-            await this.area.use(this.connection);
-            await this.area.use(this.render);
+            this.editor.use(this.area);
+            this.editor.use(this.connection);
+            this.editor.use(this.render);
 
             // Setup event listeners
             this.setupEventListeners();
 
             // Load initial data
-            await this.loadWorkflowData();
+            this.loadWorkflowData();
 
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
@@ -104,7 +109,8 @@ export class WorkflowEditor {
 
         this.contextMenu.show(event.clientX, event.clientY, [
             {
-                label: 'Add Status',
+                label: '+ Add Status',
+                icon: '📝',
                 action: () => this.addStatusNode(x, y)
             }
         ]);
@@ -120,16 +126,22 @@ export class WorkflowEditor {
             allowed_roles: ['admin']
         };
 
-        const node = new StatusNode(nodeId, statusData, this.socket);
-        await this.editor.addNode(node);
-        await this.area.translate(node.id, { x, y });
+        try {
+            const node = new StatusNode(nodeId, statusData, this.socket);
+            await this.editor.addNode(node);
+            await this.area.translate(node.id, { x, y });
 
-        this.nodes.set(nodeId, { node, data: statusData });
+            this.nodes.set(nodeId, { node, data: statusData });
 
-        // Automatically open properties panel
-        this.propertiesPanel.show(statusData, (updatedData) => {
-            this.updateNodeData(nodeId, updatedData);
-        });
+            // Automatically open properties panel
+            this.propertiesPanel.show(statusData, (updatedData) => {
+                this.updateNodeData(nodeId, updatedData);
+            });
+
+            console.log('Status node added:', nodeId);
+        } catch (error) {
+            console.error('Failed to add status node:', error);
+        }
     }
 
     onNodeSelected(nodeId) {
@@ -142,6 +154,11 @@ export class WorkflowEditor {
     }
 
     updateNodeData(nodeId, newData) {
+        if (newData._delete) {
+            this.deleteNode(nodeId);
+            return;
+        }
+
         const nodeData = this.nodes.get(nodeId);
         if (nodeData) {
             nodeData.data = { ...nodeData.data, ...newData };
@@ -155,48 +172,38 @@ export class WorkflowEditor {
     updateNodeVisual(nodeId) {
         const nodeData = this.nodes.get(nodeId);
         if (nodeData) {
-            // Update node appearance based on new data
-            const nodeElement = this.container.querySelector(`[data-node-id="${nodeId}"]`);
-            if (nodeElement) {
-                // Update colors, text, etc.
-                nodeElement.style.borderColor = nodeData.data.color_code;
-                const titleElement = nodeElement.querySelector('.node-title');
-                if (titleElement) {
-                    titleElement.textContent = nodeData.data.name;
-                }
+            // Update the node's label and re-render
+            nodeData.node.label = nodeData.data.name;
+            nodeData.node.data = nodeData.data;
+
+            // Force re-render of the node
+            this.area.update('node', nodeData.node.id);
+        }
+    }
+
+    async deleteNode(nodeId) {
+        try {
+            const nodeData = this.nodes.get(nodeId);
+            if (nodeData) {
+                await this.editor.removeNode(nodeData.node.id);
+                this.nodes.delete(nodeId);
+                console.log('Node deleted:', nodeId);
             }
+        } catch (error) {
+            console.error('Failed to delete node:', error);
         }
     }
 
     onConnectionCreated(connection) {
         console.log('Connection created:', connection);
-        // Store transition data
     }
 
     customizeNode(context) {
-        const { payload } = context;
-        const nodeData = this.nodes.get(payload.id);
-
-        if (nodeData) {
-            return {
-                ...context,
-                payload: {
-                    ...payload,
-                    data: nodeData.data
-                }
-            };
-        }
         return context;
     }
 
     customizeConnection(context) {
-        return {
-            ...context,
-            payload: {
-                ...context.payload,
-                className: 'workflow-connection'
-            }
-        };
+        return context;
     }
 
     loadWorkflowData() {
@@ -207,7 +214,11 @@ export class WorkflowEditor {
         if (statusesData) {
             try {
                 const statuses = JSON.parse(statusesData);
-                this.loadStatuses(statuses);
+                if (statuses.length > 0) {
+                    this.loadStatuses(statuses);
+                } else {
+                    console.log('No existing statuses found');
+                }
             } catch (error) {
                 console.error('Failed to parse statuses data:', error);
             }
@@ -217,15 +228,26 @@ export class WorkflowEditor {
     async loadStatuses(statuses) {
         for (const status of statuses) {
             const nodeId = `status_${status.id}`;
-            const node = new StatusNode(nodeId, status, this.socket);
 
-            await this.editor.addNode(node);
-            await this.area.translate(node.id, {
-                x: status.position_x || 100,
-                y: status.position_y || 100
-            });
+            try {
+                const node = new StatusNode(nodeId, status, this.socket);
+                await this.editor.addNode(node);
+                await this.area.translate(node.id, {
+                    x: status.position_x || 100,
+                    y: status.position_y || 100
+                });
 
-            this.nodes.set(nodeId, { node, data: status });
+                this.nodes.set(nodeId, { node, data: status });
+
+                // Update counter to avoid ID conflicts
+                if (status.id >= this.nodeIdCounter) {
+                    this.nodeIdCounter = status.id + 1;
+                }
+
+                console.log('Loaded status node:', status.name);
+            } catch (error) {
+                console.error('Failed to load status:', status.name, error);
+            }
         }
     }
 

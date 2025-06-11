@@ -1,80 +1,50 @@
 export class ContextMenu {
     constructor() {
         this.menu = null;
-        this.isVisible = false;
-
-        // Close menu when clicking elsewhere
-        document.addEventListener('click', () => {
-            this.hide();
-        });
+        this.clickHandler = this.handleClick.bind(this);
     }
 
     show(x, y, items) {
         this.hide(); // Hide any existing menu
 
-        this.menu = this.createMenu(items);
+        // Create menu element
+        this.menu = document.createElement('div');
+        this.menu.className = 'context-menu';
         this.menu.style.left = `${x}px`;
         this.menu.style.top = `${y}px`;
 
-        document.body.appendChild(this.menu);
-        this.isVisible = true;
-
-        // Adjust position if menu goes off screen
-        this.adjustPosition();
-    }
-
-    createMenu(items) {
-        const menu = document.createElement('div');
-        menu.className = 'context-menu fixed bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50 min-w-48';
-
+        // Add menu items
         items.forEach(item => {
             const menuItem = document.createElement('div');
-            menuItem.className = 'px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center';
-
-            if (item.icon) {
-                menuItem.innerHTML = `
-                    <span class="mr-2">${item.icon}</span>
-                    ${item.label}
-                `;
-            } else {
-                menuItem.textContent = item.label;
-            }
-
-            menuItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.hide();
+            menuItem.className = 'context-menu-item';
+            menuItem.textContent = item.label;
+            menuItem.addEventListener('click', () => {
                 item.action();
+                this.hide();
             });
-
-            menu.appendChild(menuItem);
+            this.menu.appendChild(menuItem);
         });
 
-        return menu;
+        // Add to document
+        document.body.appendChild(this.menu);
+
+        // Add global click handler to hide menu
+        setTimeout(() => {
+            document.addEventListener('click', this.clickHandler);
+        }, 0);
     }
 
-    adjustPosition() {
-        if (!this.menu) return;
-
-        const rect = this.menu.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        // Adjust horizontal position
-        if (rect.right > viewportWidth) {
-            this.menu.style.left = `${viewportWidth - rect.width - 10}px`;
-        }
-
-        // Adjust vertical position
-        if (rect.bottom > viewportHeight) {
-            this.menu.style.top = `${viewportHeight - rect.height - 10}px`;
+    handleClick(event) {
+        if (this.menu && !this.menu.contains(event.target)) {
+            this.hide();
         }
     }
 
     hide() {
-        if (this.menu && this.menu.parentNode) {
-            this.menu.parentNode.removeChild(this.menu);
+        if (this.menu) {
+            this.menu.remove();
+            this.menu = null;
+            document.removeEventListener('click', this.clickHandler);
         }
-        this.menu = null;
-        this.isVisible = false;
     }
 }
