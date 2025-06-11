@@ -33,6 +33,8 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200" style="height: 600px;">
             <div
                 id="workflow-editor"
+                x-data="workflowEditor"
+                x-init="init()"
                 wire:ignore
                 class="w-full h-full rounded-lg"
                 data-statuses="{{ json_encode($statuses) }}"
