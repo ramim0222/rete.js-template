@@ -1,20 +1,33 @@
-import { NodeEditor } from 'rete';
+import { NodeEditor, ClassicPreset } from 'rete';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
-import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
-import { RenderPlugin, Presets as RenderPresets } from 'rete-render-utils';
+import { ConnectionPlugin } from 'rete-connection-plugin';
 import { StatusNode } from './nodes/StatusNode.js';
 import { StatusSocket } from './sockets/StatusSocket.js';
 import { PropertiesPanel } from './ui/PropertiesPanel.js';
 import { ContextMenu } from './ui/ContextMenu.js';
+
+// Define the types for our editor
+const socket = new ClassicPreset.Socket('socket');
+
+// Define the connection and node types
+class Connection extends ClassicPreset.Connection {
+}
+
+class Node extends ClassicPreset.Node {
+    constructor(socket) {
+        super('Status');
+        this.addOutput('output', new ClassicPreset.Output(socket));
+        this.addInput('input', new ClassicPreset.Input(socket));
+    }
+}
 
 export class WorkflowEditor {
     constructor(container) {
         this.container = container;
         this.editor = null;
         this.area = null;
-        this.render = null;
         this.connection = null;
-        this.socket = new StatusSocket();
+        this.socket = socket;
         this.propertiesPanel = new PropertiesPanel();
         this.contextMenu = new ContextMenu();
         this.nodes = new Map();
@@ -23,32 +36,29 @@ export class WorkflowEditor {
 
     async initialize() {
         try {
-            // Create editor instance - use NodeEditor instead of createEditor
+            // Create editor instance with defined types
             this.editor = new NodeEditor();
 
-            // Setup area plugin (for positioning and visual management)
+            // Setup area plugin with proper scope
             this.area = new AreaPlugin(this.container);
+
+            // Add classic preset for area extensions
             AreaExtensions.selectableNodes(this.area, AreaExtensions.selector(), {
                 accumulating: AreaExtensions.accumulateOnCtrl()
             });
 
-            // Setup connection plugin (for connecting nodes)
+            // Setup connection plugin with proper scope
             this.connection = new ConnectionPlugin();
-            this.connection.addPreset(ConnectionPresets.classic.setup());
 
-            // Setup render plugin (for visual rendering)
-            this.render = new RenderPlugin();
-            const { contextMenu } = this.render.addPreset(RenderPresets.classic.setup({
-                customize: {
-                    node: (context) => this.customizeNode(context),
-                    connection: (context) => this.customizeConnection(context)
-                }
+            // Add connection preset
+            this.connection.addPreset(() => ({
+                createConnection: () => new Connection(),
+                validate: ({ input, output }) => input.socket === output.socket
             }));
 
-            // Use plugins
-            this.editor.use(this.area);
-            this.editor.use(this.connection);
-            this.editor.use(this.render);
+            // Use plugins in correct order
+            await this.editor.use(this.area);
+            await this.area.use(this.connection);
 
             // Setup event listeners
             this.setupEventListeners();
@@ -59,6 +69,7 @@ export class WorkflowEditor {
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Workflow Editor:', error);
+            throw error; // Re-throw to see the full error in console
         }
     }
 
@@ -127,10 +138,16 @@ export class WorkflowEditor {
         };
 
         try {
-            const node = new StatusNode(nodeId, statusData, this.socket);
+            const node = new Node(this.socket);
+            node.id = nodeId;
+
+            // Add the node to the editor
             await this.editor.addNode(node);
+
+            // Position the node
             await this.area.translate(node.id, { x, y });
 
+            // Store node data
             this.nodes.set(nodeId, { node, data: statusData });
 
             // Automatically open properties panel
