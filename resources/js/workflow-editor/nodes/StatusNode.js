@@ -2,7 +2,7 @@ import { ClassicPreset } from 'rete';
 
 export class StatusNode extends ClassicPreset.Node {
     constructor(id, data, socket) {
-        super(data.name || 'Status');
+        super(id);
 
         this.data = data;
         this.width = 200;
@@ -18,6 +18,20 @@ export class StatusNode extends ClassicPreset.Node {
             description: data.description,
             colorCode: data.color_code,
             allowedRoles: data.allowed_roles
+        };
+
+        // Set display properties
+        this.displayName = data.name || 'Status';
+        this.backgroundColor = data.color_code || '#3B82F6';
+    }
+
+    // This method is called by the render plugin to get data for rendering
+    data() {
+        return {
+            label: this.displayName,
+            description: this.meta.description,
+            color: this.backgroundColor,
+            roles: this.meta.allowedRoles.join(', ')
         };
     }
 

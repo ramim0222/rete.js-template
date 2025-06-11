@@ -1,4 +1,4 @@
-import { createEditor } from 'rete';
+import { createEditor, ClassicPreset } from 'rete';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
 import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
 import { RenderPlugin, Presets as RenderPresets } from 'rete-render-utils';
@@ -21,10 +21,10 @@ export class WorkflowEditor {
         this.nodeIdCounter = 1;
     }
 
-    async initialize() {
+    async init() {
         try {
             // Create editor instance
-            this.editor = createEditor();
+            this.editor = await createEditor();
 
             // Setup area plugin (for positioning and visual management)
             this.area = new AreaPlugin(this.container);
@@ -38,27 +38,18 @@ export class WorkflowEditor {
 
             // Setup render plugin (for visual rendering)
             this.render = new RenderPlugin();
-            this.render.addPreset(RenderPresets.classic.setup({
-                customize: {
-                    node(context) {
-                        return this.customizeNode(context);
-                    },
-                    connection(context) {
-                        return this.customizeConnection(context);
-                    }
-                }
-            }));
+            this.render.addPreset(RenderPresets.classic.setup());
 
             // Use plugins
-            this.editor.use(this.area);
-            this.editor.use(this.connection);
-            this.editor.use(this.render);
+            await this.editor.use(this.area);
+            await this.area.use(this.connection);
+            await this.area.use(this.render);
 
             // Setup event listeners
             this.setupEventListeners();
 
             // Load initial data
-            this.loadWorkflowData();
+            await this.loadWorkflowData();
 
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
