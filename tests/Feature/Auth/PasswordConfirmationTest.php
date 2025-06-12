@@ -1,44 +1,41 @@
 <?php
 
-namespace Tests\Feature\Auth;
-
+use App\Livewire\Auth\ConfirmPassword;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
+use Livewire\Livewire;
 
-class PasswordConfirmationTest extends TestCase
-{
-    use RefreshDatabase;
+uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-    public function test_confirm_password_screen_can_be_rendered(): void
-    {
-        $user = User::factory()->create();
+test('confirm password screen can be rendered', function () {
+    $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->get('/confirm-password');
+    $response = $this->actingAs($user)->get('/confirm-password');
 
-        $response->assertStatus(200);
-    }
+    $response->assertStatus(200);
+});
 
-    public function test_password_can_be_confirmed(): void
-    {
-        $user = User::factory()->create();
+test('password can be confirmed', function () {
+    $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post('/confirm-password', [
-            'password' => 'password',
-        ]);
+    $this->actingAs($user);
 
-        $response->assertRedirect();
-        $response->assertSessionHasNoErrors();
-    }
+    $response = Livewire::test(ConfirmPassword::class)
+        ->set('password', 'password')
+        ->call('confirmPassword');
 
-    public function test_password_is_not_confirmed_with_invalid_password(): void
-    {
-        $user = User::factory()->create();
+    $response
+        ->assertHasNoErrors()
+        ->assertRedirect(route('dashboard', absolute: false));
+});
 
-        $response = $this->actingAs($user)->post('/confirm-password', [
-            'password' => 'wrong-password',
-        ]);
+test('password is not confirmed with invalid password', function () {
+    $user = User::factory()->create();
 
-        $response->assertSessionHasErrors();
-    }
-}
+    $this->actingAs($user);
+
+    $response = Livewire::test(ConfirmPassword::class)
+        ->set('password', 'wrong-password')
+        ->call('confirmPassword');
+
+    $response->assertHasErrors(['password']);
+});
