@@ -1,8 +1,9 @@
-import { ClassicPreset } from 'rete';
+import Rete from 'rete';
 
-export class StatusSocket extends ClassicPreset.Socket {
+export class StatusSocket extends Rete.Socket {
     constructor() {
         super('status');
-        this.name = 'status';
+        this.name = 'Status';
+        this.compatibleWith = ['status'];
     }
 }

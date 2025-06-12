@@ -1,50 +1,65 @@
-import { ClassicPreset } from 'rete';
+import Rete from 'rete';
 
-export class StatusNode extends ClassicPreset.Node {
-    constructor(id, data, socket) {
-        super(data.name);
+export class StatusNode extends Rete.Component {
+    constructor(name, socket) {
+        super(name);
+        this.socket = socket;
+        this.data.component = name;
+    }
 
-        this.id = id;
-        this.data = data;
-        this._position = { x: 0, y: 0 };
+    builder(node) {
+        const input = new Rete.Input('input', 'Input', this.socket, true);
+        const output = new Rete.Output('output', 'Output', this.socket, true);
 
-        // Set dimensions
-        this.width = 180;
-        this.height = 100;
+        node.addInput(input)
+            .addOutput(output);
 
-        // Add input and output sockets
-        this.addInput('input', new ClassicPreset.Input(socket));
-        this.addOutput('output', new ClassicPreset.Output(socket));
-
-        // Set display properties
-        this.label = data.name;
-        this.displayStyle = {
-            backgroundColor: data.color_code || '#3B82F6',
+        // Add custom styling
+        node.data.style = {
+            background: node.data.color_code || '#3B82F6',
             color: '#ffffff',
-            borderRadius: '8px',
-            padding: '12px',
-            position: 'absolute'
+            'border-radius': '8px',
+            padding: '12px'
         };
 
-        // Store additional data
-        this.meta = {
-            statusId: data.id,
-            description: data.description,
-            colorCode: data.color_code,
-            allowedRoles: data.allowed_roles
+        // Create node elements
+        const titleEl = document.createElement('div');
+        titleEl.textContent = node.data.name || 'Status';
+        titleEl.style.fontWeight = 'bold';
+        titleEl.style.marginBottom = '8px';
+
+        const descEl = document.createElement('div');
+        descEl.textContent = node.data.description || '';
+        descEl.style.fontSize = '0.9em';
+        descEl.style.opacity = '0.8';
+
+        node.update = () => {
+            titleEl.textContent = node.data.name || 'Status';
+            descEl.textContent = node.data.description || '';
+            node.data.style.background = node.data.color_code || '#3B82F6';
         };
+
+        return node
+            .addControl(new Rete.Control('title', { element: titleEl }))
+            .addControl(new Rete.Control('description', { element: descEl }));
     }
 
-    get position() {
-        return this._position;
+    async createNode(data) {
+        const node = await this.createNode();
+        node.data = {
+            ...node.data,
+            ...data,
+            style: {
+                background: data.color_code || '#3B82F6',
+                color: '#ffffff',
+                'border-radius': '8px',
+                padding: '12px'
+            }
+        };
+        return node;
     }
 
-    set position(pos) {
-        if (!pos || typeof pos.x === 'undefined' || typeof pos.y === 'undefined') {
-            console.warn('Invalid position:', pos);
-            return;
-        }
-
-        this._position = pos;
+    worker(node, inputs, outputs) {
+        // No processing needed for this node type
     }
 }

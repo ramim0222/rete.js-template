@@ -19,10 +19,10 @@
         "vite": "^6.2.4"
     },
     "dependencies": {
-        "rete": "^2.0.5",
-        "rete-area-plugin": "^2.0.1",
-        "rete-connection-plugin": "^2.0.0",
-        "rete-render-utils": "^2.0.3",
+        "rete": "1.4.1",
+        "rete-area-plugin": "0.2.1",
+        "rete-connection-plugin": "0.9.0",
+        "rete-context-menu-plugin": "0.5.2",
         "uuid": "^11.1.0"
     }
 }
