@@ -6,6 +6,7 @@ export class StatusNode extends ClassicPreset.Node {
 
         this.id = id;
         this.data = data;
+        this._position = { x: 0, y: 0 };
 
         // Set dimensions
         this.width = 180;
@@ -21,7 +22,8 @@ export class StatusNode extends ClassicPreset.Node {
             backgroundColor: data.color_code || '#3B82F6',
             color: '#ffffff',
             borderRadius: '8px',
-            padding: '12px'
+            padding: '12px',
+            position: 'absolute'
         };
 
         // Store additional data
@@ -31,5 +33,18 @@ export class StatusNode extends ClassicPreset.Node {
             colorCode: data.color_code,
             allowedRoles: data.allowed_roles
         };
+    }
+
+    get position() {
+        return this._position;
+    }
+
+    set position(pos) {
+        if (!pos || typeof pos.x === 'undefined' || typeof pos.y === 'undefined') {
+            console.warn('Invalid position:', pos);
+            return;
+        }
+
+        this._position = pos;
     }
 }

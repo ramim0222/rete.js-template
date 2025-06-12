@@ -5,7 +5,7 @@ console.log('=== Loading Workflow Editor ===');
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('=== Initializing Workflow Editor ===');
 
-    const editorContainer = document.getElementById('workflow-editor');
+    const editorContainer = document.getElementById('workflow-editor-canvas');
     if (editorContainer) {
         try {
             const editor = new WorkflowEditor(editorContainer);

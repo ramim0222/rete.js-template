@@ -11,6 +11,14 @@ const socket = new ClassicPreset.Socket('socket');
 
 // Define the connection and node types
 class Connection extends ClassicPreset.Connection {
+    constructor() {
+        super();
+        this.style = {
+            stroke: '#64748b',
+            strokeWidth: 2,
+            fill: 'none'
+        };
+    }
 }
 
 class Node extends ClassicPreset.Node {
@@ -39,26 +47,33 @@ export class WorkflowEditor {
             // Create editor instance
             this.editor = new NodeEditor();
 
-            // Setup area plugin
+            // Initialize area plugin with customizations
             this.area = new AreaPlugin(this.container);
-
-            // Add classic preset for area extensions
-            AreaExtensions.selectableNodes(this.area, AreaExtensions.selector(), {
-                accumulating: AreaExtensions.accumulateOnCtrl()
-            });
 
             // Setup connection plugin
             this.connection = new ConnectionPlugin();
 
-            // Add connection preset
-            this.connection.addPreset(() => ({
-                createConnection: () => new ClassicPreset.Connection(),
-                validate: ({ input, output }) => input.socket === output.socket
-            }));
-
             // Use plugins in correct order
             await this.editor.use(this.area);
             await this.area.use(this.connection);
+
+            // Add basic area extensions
+            AreaExtensions.selectableNodes(this.area, AreaExtensions.selector());
+            AreaExtensions.simpleNodesOrder(this.area);
+
+            // Setup node rendering
+            this.area.addPipe(context => {
+                if (context.type === 'render') {
+                    if (context.data.type === 'node') {
+                        const { node } = context.data;
+                        if (node instanceof StatusNode) {
+                            const element = this.createNodeElement(node);
+                            context.data.element = element;
+                        }
+                    }
+                }
+                return context;
+            });
 
             // Setup event listeners
             this.setupEventListeners();
@@ -69,8 +84,68 @@ export class WorkflowEditor {
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Workflow Editor:', error);
-            throw error;
         }
+    }
+
+    createNodeElement(node) {
+        const el = document.createElement('div');
+        el.classList.add('node');
+
+        // Apply custom styles from node
+        if (node.displayStyle) {
+            Object.assign(el.style, node.displayStyle);
+        }
+
+        // Create title
+        const title = document.createElement('div');
+        title.classList.add('title');
+        title.textContent = node.label;
+        el.appendChild(title);
+
+        // Create description if available
+        if (node.meta.description) {
+            const desc = document.createElement('div');
+            desc.classList.add('description');
+            desc.textContent = node.meta.description;
+            el.appendChild(desc);
+        }
+
+        // Create sockets container
+        const socketsContainer = document.createElement('div');
+        socketsContainer.classList.add('sockets-container');
+
+        // Add input socket
+        const input = document.createElement('div');
+        input.classList.add('socket', 'input');
+        input.setAttribute('data-socket', 'input');
+        socketsContainer.appendChild(input);
+
+        // Add output socket
+        const output = document.createElement('div');
+        output.classList.add('socket', 'output');
+        output.setAttribute('data-socket', 'output');
+        socketsContainer.appendChild(output);
+
+        el.appendChild(socketsContainer);
+
+        // Set position using transform
+        if (node.position) {
+            el.style.transform = `translate(${node.position.x}px, ${node.position.y}px)`;
+        }
+
+        return el;
+    }
+
+    createConnectionElement() {
+        const el = document.createElement('svg');
+        el.classList.add('connection');
+        el.setAttribute('overflow', 'visible');
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.classList.add('connection-path');
+        el.appendChild(path);
+
+        return el;
     }
 
     setupEventListeners() {
@@ -86,17 +161,12 @@ export class WorkflowEditor {
                 const x = event.clientX - rect.left;
                 const y = event.clientY - rect.top;
 
-                // Convert screen coordinates to editor coordinates
-                const { k: zoom, x: panX, y: panY } = this.area.area.transform;
-                const editorX = (x - panX) / zoom;
-                const editorY = (y - panY) / zoom;
-
                 // Show context menu
                 this.contextMenu.show(event.clientX, event.clientY, [
                     {
                         label: '+ Add Status',
                         icon: '📝',
-                        action: () => this.addStatusNode(editorX, editorY)
+                        action: () => this.addStatusNode(x, y)
                     }
                 ]);
             }
@@ -146,11 +216,11 @@ export class WorkflowEditor {
             // Create new node
             const node = new StatusNode(nodeId, statusData, this.socket);
 
+            // Set node position
+            node.position = { x: x || 100, y: y || 100 };
+
             // Add node to editor
             await this.editor.addNode(node);
-
-            // Position the node
-            await this.area.translate(node.id, { x, y });
 
             // Store node data
             this.nodes.set(nodeId, { node, data: statusData });
@@ -160,7 +230,16 @@ export class WorkflowEditor {
                 this.updateNodeData(nodeId, updatedData);
             });
 
-            console.log('Status node added:', nodeId);
+            // Force render update
+            await this.area.update('node', nodeId);
+
+            // Log node details for debugging
+            console.log('Status node added:', {
+                id: nodeId,
+                position: node.position,
+                data: statusData
+            });
+
         } catch (error) {
             console.error('Failed to add status node:', error);
         }
@@ -208,9 +287,10 @@ export class WorkflowEditor {
 
     saveWorkflow() {
         const workflowData = {
-            statuses: Array.from(this.nodes.values()).map(({ data }) => ({
+            statuses: Array.from(this.nodes.values()).map(({ data, node }) => ({
                 ...data,
-                position: this.area.nodeViews.get(data.id)?.position
+                position_x: node.position.x,
+                position_y: node.position.y
             })),
             transitions: this.getTransitions()
         };

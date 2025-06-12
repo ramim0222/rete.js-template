@@ -1,4 +1,4 @@
-<div id="workflow-editor" class="min-h-screen bg-gray-50 py-8">
+<div id="workflow-editor-container" class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="mb-8">
@@ -32,8 +32,8 @@
         <!-- Editor Canvas -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200" style="height: 600px;">
             <div
-                id="workflow-editor"
-                class="w-full h-full rounded-lg"
+                id="workflow-editor-canvas"
+                class="workflow-editor-canvas w-full h-full rounded-lg"
                 data-statuses="{{ json_encode($statuses) }}"
                 data-transitions="{{ json_encode($transitions) }}"
             ></div>

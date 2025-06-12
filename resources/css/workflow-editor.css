@@ -5,13 +5,41 @@
     background-color: #f8fafc;
 }
 
+.workflow-editor-canvas {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    background-size: 20px 20px;
+    background-image: linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+                      linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+}
+
+.workflow-editor-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: 20px 20px;
+    background-image: linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+                      linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+    pointer-events: none;
+}
+
 .node {
+    position: absolute !important;
     background: white;
     border: 2px solid #e2e8f0;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    min-width: 200px;
+    min-width: 180px;
     padding: 12px;
+    user-select: none;
+    cursor: move;
+    z-index: 1;
+    will-change: transform;
+    transform-origin: top left;
 }
 
 .node.selected {
@@ -22,13 +50,12 @@
 .node .title {
     font-weight: 600;
     margin-bottom: 8px;
-    color: #1e293b;
 }
 
 .node .description {
     font-size: 0.875rem;
     color: #64748b;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .node .roles {
@@ -46,13 +73,26 @@
     stroke-width: 3px;
 }
 
+.sockets-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
 .socket {
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     background: white;
     border: 2px solid #64748b;
+    position: absolute;
+    top: 50%;
     cursor: pointer;
+    pointer-events: all;
+    z-index: 2;
 }
 
 .socket:hover {
@@ -60,11 +100,13 @@
 }
 
 .socket.input {
-    margin-left: -8px;
+    left: -6px;
+    transform: translateY(-50%);
 }
 
 .socket.output {
-    margin-right: -8px;
+    right: -6px;
+    transform: translateY(-50%);
 }
 
 .context-menu {
