@@ -1,3 +1,4 @@
+import 'regenerator-runtime/runtime';
 import Rete from 'rete';
 import AreaPlugin from 'rete-area-plugin';
 import ConnectionPlugin from 'rete-connection-plugin';
