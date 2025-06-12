@@ -5,6 +5,22 @@ import ConnectionPlugin from 'rete-connection-plugin';
 import { StatusNode } from './nodes/StatusNode.js';
 import { StatusSocket } from './sockets/StatusSocket.js';
 import { PropertiesPanel } from './ui/PropertiesPanel.js';
+import { ContextMenu } from './ui/ContextMenu.js';
+
+// Define the types for our editor
+const socket = new ClassicPreset.Socket('socket');
+
+// Define the connection and node types
+class Connection extends ClassicPreset.Connection {
+}
+
+class Node extends ClassicPreset.Node {
+    constructor(socket) {
+        super('Status');
+        this.addOutput('output', new ClassicPreset.Output(socket));
+        this.addInput('input', new ClassicPreset.Input(socket));
+    }
+}
 
 export class WorkflowEditor {
     constructor(container) {
@@ -26,23 +42,26 @@ export class WorkflowEditor {
             // Create editor instance
             this.editor = new Rete.NodeEditor('workflow@1.0.0', this.container);
 
-            // Initialize area plugin first
-            this.editor.use(AreaPlugin, {
-                background: true,
-                snap: false,
-                scaleExtent: { min: 0.1, max: 1.5 },
-                translateExtent: { width: 5000, height: 4000 }
+            // Setup area plugin
+            this.area = new AreaPlugin(this.container);
+
+            // Add classic preset for area extensions
+            AreaExtensions.selectableNodes(this.area, AreaExtensions.selector(), {
+                accumulating: AreaExtensions.accumulateOnCtrl()
             });
 
-            // Then initialize connection plugin
-            this.editor.use(ConnectionPlugin);
+            // Setup connection plugin
+            this.connection = new ConnectionPlugin();
 
-            // Register components
-            this.components.status = new StatusNode('Status', this.socket);
-            await this.editor.register(this.components.status);
+            // Add connection preset
+            this.connection.addPreset(() => ({
+                createConnection: () => new ClassicPreset.Connection(),
+                validate: ({ input, output }) => input.socket === output.socket
+            }));
 
-            // Initialize custom context menu
-            this.setupContextMenu();
+            // Use plugins in correct order
+            await this.editor.use(this.area);
+            await this.area.use(this.connection);
 
             // Setup event listeners
             this.setupEventListeners();
@@ -66,85 +85,36 @@ export class WorkflowEditor {
         }
     }
 
-    setupContextMenu() {
-        // Create context menu element
-        const contextMenu = document.createElement('div');
-        contextMenu.className = 'context-menu hidden';
-        contextMenu.innerHTML = `
-            <button data-action="add-status">Add Status</button>
-        `;
-        document.body.appendChild(contextMenu);
-
-        // Handle context menu positioning and display
-        this.container.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            // Get the editor's viewport position and zoom level
-            const view = this.editor.view;
-            const transform = view.area.transform;
-            const zoom = transform.k;
-
-            // Convert mouse position to editor coordinates
-            const rect = this.container.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / zoom - transform.x;
-            const y = (e.clientY - rect.top) / zoom - transform.y;
-
-            // Position the context menu at the mouse position
-            contextMenu.style.left = `${e.clientX}px`;
-            contextMenu.style.top = `${e.clientY}px`;
-            contextMenu.classList.remove('hidden');
-
-            // Store the converted coordinates for node creation
-            contextMenu.dataset.x = x;
-            contextMenu.dataset.y = y;
-        });
-
-        // Handle menu item clicks
-        contextMenu.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const action = e.target.dataset.action;
-            if (action === 'add-status') {
-                const x = parseFloat(contextMenu.dataset.x);
-                const y = parseFloat(contextMenu.dataset.y);
-                this.addStatusNode(x, y);
-            }
-            contextMenu.classList.add('hidden');
-        });
-
-        // Hide menu when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!contextMenu.contains(e.target)) {
-                contextMenu.classList.add('hidden');
-            }
-        });
-
-        // Hide menu when scrolling or dragging
-        this.container.addEventListener('wheel', () => {
-            contextMenu.classList.add('hidden');
-        });
-
-        this.container.addEventListener('mousemove', (e) => {
-            if (e.buttons > 0) { // If any mouse button is pressed
-                contextMenu.classList.add('hidden');
-            }
-        });
-    }
-
-    async processNodes() {
-        // This is where you would implement any processing logic
-        // For now, we'll just validate the connections
-        for (const node of this.editor.nodes) {
-            const nodeComponent = this.components[node.name.toLowerCase()];
-            if (nodeComponent && nodeComponent.worker) {
-                await nodeComponent.worker(node, {}, {});
-            }
-        }
-    }
-
     setupEventListeners() {
+        // Right-click context menu
+        this.area.addPipe(context => {
+            if (context.type === 'contextmenu') {
+                const event = context.data.event;
+                event.preventDefault();
+                event.stopPropagation();
+
+                // Get position relative to the editor
+                const rect = this.container.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                // Convert screen coordinates to editor coordinates
+                const { k: zoom, x: panX, y: panY } = this.area.area.transform;
+                const editorX = (x - panX) / zoom;
+                const editorY = (y - panY) / zoom;
+
+                // Show context menu
+                this.contextMenu.show(event.clientX, event.clientY, [
+                    {
+                        label: '+ Add Status',
+                        icon: '📝',
+                        action: () => this.addStatusNode(editorX, editorY)
+                    }
+                ]);
+            }
+            return context;
+        });
+
         // Node selection
         this.editor.on('nodeselected', node => {
             const nodeData = this.nodes.get(node.id);
@@ -188,11 +158,13 @@ export class WorkflowEditor {
             };
 
             // Create new node
-            const node = await this.components.status.createNode(statusData);
-            node.position = [x || 100, y || 100];
+            const node = new StatusNode(nodeId, statusData, this.socket);
 
             // Add node to editor
             await this.editor.addNode(node);
+
+            // Position the node
+            await this.area.translate(node.id, { x, y });
 
             // Store node data
             this.nodes.set(nodeId, { node, data: statusData });
@@ -202,16 +174,7 @@ export class WorkflowEditor {
                 this.updateNodeData(nodeId, updatedData);
             });
 
-            // Force editor to update
-            this.editor.view.resize();
-            this.editor.trigger('process');
-
-            console.log('Status node added:', {
-                id: nodeId,
-                position: node.position,
-                data: statusData
-            });
-
+            console.log('Status node added:', nodeId);
         } catch (error) {
             console.error('Failed to add status node:', error);
             throw error;
@@ -303,10 +266,9 @@ export class WorkflowEditor {
 
     saveWorkflow() {
         const workflowData = {
-            statuses: Array.from(this.nodes.values()).map(({ data, node }) => ({
+            statuses: Array.from(this.nodes.values()).map(({ data }) => ({
                 ...data,
-                position_x: node.position[0],
-                position_y: node.position[1]
+                position: this.area.nodeViews.get(data.id)?.position
             })),
             transitions: this.getTransitions()
         };

@@ -271,35 +271,6 @@
             </main>
         </div>
 
-
-
-
- <form action="">
-    <input type="text" name="name" id="name">
-    <input type="email" name="email" id="email">
-    <input type="password" name="password" id="password">
-    <input type="checkbox" name="form-2" id="remember" form="form-2">
-    <button type="submit">Submit</button>
- </form>
-
-<form action="" id="form-2">
-
-    <button type="submit">Submit</button>
-</form>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
