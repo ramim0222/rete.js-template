@@ -4,6 +4,9 @@ export class StatusSocket extends Rete.Socket {
     constructor() {
         super('status');
         this.name = 'Status';
-        this.compatibleWith = ['status'];
+    }
+
+    compatibleWith(socket) {
+        return this.name === socket.name;
     }
 }

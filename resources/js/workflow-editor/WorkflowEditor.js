@@ -2,7 +2,6 @@ import 'regenerator-runtime/runtime';
 import Rete from 'rete';
 import AreaPlugin from 'rete-area-plugin';
 import ConnectionPlugin from 'rete-connection-plugin';
-import ContextMenuPlugin from 'rete-context-menu-plugin';
 import { StatusNode } from './nodes/StatusNode.js';
 import { StatusSocket } from './sockets/StatusSocket.js';
 import { PropertiesPanel } from './ui/PropertiesPanel.js';
@@ -25,7 +24,7 @@ export class WorkflowEditor {
 
             // Register components
             this.components.status = new StatusNode('Status', this.socket);
-            this.editor.register(this.components.status);
+            await this.editor.register(this.components.status);
 
             // Initialize plugins
             this.editor.use(ConnectionPlugin);
@@ -35,18 +34,8 @@ export class WorkflowEditor {
                 scaleExtent: { min: 0.1, max: 1.5 }
             });
 
-            // Initialize context menu
-            this.editor.use(ContextMenuPlugin, {
-                items: {
-                    'Add Status': {
-                        label: 'Add Status',
-                        onClick: () => {
-                            const mousePosition = this.editor.view.area.mouse;
-                            this.addStatusNode(mousePosition.x, mousePosition.y);
-                        }
-                    }
-                }
-            });
+            // Initialize custom context menu
+            this.setupContextMenu();
 
             // Setup event listeners
             this.setupEventListeners();
@@ -58,14 +47,92 @@ export class WorkflowEditor {
             this.editor.view.resize();
             AreaPlugin.zoomAt(this.editor);
 
-            // Process
-            this.editor.on('process nodecreated noderemoved connectioncreated connectionremoved', async () => {
-                await this.editor.process();
+            // Setup process handling
+            this.editor.on(['process', 'nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'], async () => {
+                await this.processNodes();
             });
 
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Workflow Editor:', error);
+        }
+    }
+
+    setupContextMenu() {
+        // Create context menu element
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu hidden';
+        contextMenu.innerHTML = `
+            <button data-action="add-status">Add Status</button>
+        `;
+        document.body.appendChild(contextMenu);
+
+        // Handle context menu positioning and display
+        this.container.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Get the editor's viewport position and zoom level
+            const view = this.editor.view;
+            const transform = view.area.transform;
+            const zoom = transform.k;
+
+            // Convert mouse position to editor coordinates
+            const rect = this.container.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / zoom - transform.x;
+            const y = (e.clientY - rect.top) / zoom - transform.y;
+
+            // Position the context menu at the mouse position
+            contextMenu.style.left = `${e.clientX}px`;
+            contextMenu.style.top = `${e.clientY}px`;
+            contextMenu.classList.remove('hidden');
+
+            // Store the converted coordinates for node creation
+            contextMenu.dataset.x = x;
+            contextMenu.dataset.y = y;
+        });
+
+        // Handle menu item clicks
+        contextMenu.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const action = e.target.dataset.action;
+            if (action === 'add-status') {
+                const x = parseFloat(contextMenu.dataset.x);
+                const y = parseFloat(contextMenu.dataset.y);
+                this.addStatusNode(x, y);
+            }
+            contextMenu.classList.add('hidden');
+        });
+
+        // Hide menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.classList.add('hidden');
+            }
+        });
+
+        // Hide menu when scrolling or dragging
+        this.container.addEventListener('wheel', () => {
+            contextMenu.classList.add('hidden');
+        });
+
+        this.container.addEventListener('mousemove', (e) => {
+            if (e.buttons > 0) { // If any mouse button is pressed
+                contextMenu.classList.add('hidden');
+            }
+        });
+    }
+
+    async processNodes() {
+        // This is where you would implement any processing logic
+        // For now, we'll just validate the connections
+        for (const node of this.editor.nodes) {
+            const nodeComponent = this.components[node.name.toLowerCase()];
+            if (nodeComponent && nodeComponent.worker) {
+                await nodeComponent.worker(node, {}, {});
+            }
         }
     }
 
@@ -133,6 +200,8 @@ export class WorkflowEditor {
                 data: statusData
             });
 
+            await this.processNodes();
+
         } catch (error) {
             console.error('Failed to add status node:', error);
         }
@@ -148,7 +217,7 @@ export class WorkflowEditor {
         if (nodeData) {
             nodeData.data = { ...nodeData.data, ...newData };
             nodeData.node.data = newData;
-            this.editor.trigger('process');
+            this.processNodes().catch(console.error);
             this.nodes.set(nodeId, nodeData);
         }
     }
@@ -172,25 +241,53 @@ export class WorkflowEditor {
         if (statusesData) {
             try {
                 const statuses = JSON.parse(statusesData);
+                // First create all nodes
                 for (const status of statuses) {
                     await this.addStatusNode(status.position_x || 100, status.position_y || 100);
                 }
 
-                // Add connections if transitions exist
+                // Then create connections if transitions exist
                 if (transitionsData) {
                     const transitions = JSON.parse(transitionsData);
                     for (const transition of transitions) {
-                        const fromNode = this.editor.nodes.find(n => n.id === transition.from_status_id);
-                        const toNode = this.editor.nodes.find(n => n.id === transition.to_status_id);
-                        if (fromNode && toNode) {
-                            this.editor.connect(fromNode.outputs.get('output'), toNode.inputs.get('input'));
+                        try {
+                            const fromNode = this.editor.nodes.find(n => n.id === transition.from_status_id);
+                            const toNode = this.editor.nodes.find(n => n.id === transition.to_status_id);
+
+                            if (fromNode && toNode) {
+                                const output = fromNode.outputs.get('output');
+                                const input = toNode.inputs.get('input');
+
+                                if (output && input) {
+                                    await this.editor.connect(output, input);
+                                } else {
+                                    console.warn('Could not find input/output for connection:', {
+                                        fromNode: fromNode.id,
+                                        toNode: toNode.id
+                                    });
+                                }
+                            } else {
+                                console.warn('Could not find nodes for connection:', transition);
+                            }
+                        } catch (error) {
+                            console.error('Failed to create connection:', error);
                         }
                     }
                 }
+
+                await this.processNodes();
             } catch (error) {
                 console.error('Failed to parse workflow data:', error);
             }
         }
+    }
+
+    getTransitions() {
+        const connections = Array.from(this.editor.view.connections.values());
+        return connections.map(conn => ({
+            from_status_id: conn.output.node.id,
+            to_status_id: conn.input.node.id
+        }));
     }
 
     saveWorkflow() {
@@ -207,13 +304,6 @@ export class WorkflowEditor {
         if (window.Livewire) {
             window.Livewire.emit('saveWorkflow', workflowData);
         }
-    }
-
-    getTransitions() {
-        return this.editor.connections.map(conn => ({
-            from_status_id: conn.output.node.id,
-            to_status_id: conn.input.node.id
-        }));
     }
 
     resetWorkflow() {

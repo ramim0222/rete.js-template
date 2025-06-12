@@ -1,54 +1,63 @@
 import Rete from 'rete';
 
+class TitleControl extends Rete.Control {
+    constructor(emitter, key, node) {
+        super(key);
+        this.emitter = emitter;
+        this.key = key;
+        this.node = node;
+
+        const el = document.createElement('div');
+        el.style.fontWeight = 'bold';
+        el.style.marginBottom = '8px';
+        el.textContent = node.data.name || 'Status';
+        this.element = el;
+    }
+}
+
+class DescriptionControl extends Rete.Control {
+    constructor(emitter, key, node) {
+        super(key);
+        this.emitter = emitter;
+        this.key = key;
+        this.node = node;
+
+        const el = document.createElement('div');
+        el.style.fontSize = '0.9em';
+        el.style.opacity = '0.8';
+        el.textContent = node.data.description || '';
+        this.element = el;
+    }
+}
+
 export class StatusNode extends Rete.Component {
     constructor(name, socket) {
-        super(name);
+        super('Status');
         this.socket = socket;
-        this.data.component = name;
+        this.data.component = 'Status';
     }
 
     builder(node) {
-        const input = new Rete.Input('input', 'Input', this.socket, true);
-        const output = new Rete.Output('output', 'Output', this.socket, true);
+        const input = new Rete.Input('input', 'Input', this.socket);
+        const output = new Rete.Output('output', 'Output', this.socket);
 
-        node.addInput(input)
+        node
+            .addInput(input)
             .addOutput(output);
 
-        // Add custom styling
-        node.data.style = {
-            background: node.data.color_code || '#3B82F6',
-            color: '#ffffff',
-            'border-radius': '8px',
-            padding: '12px'
-        };
-
-        // Create node elements
-        const titleEl = document.createElement('div');
-        titleEl.textContent = node.data.name || 'Status';
-        titleEl.style.fontWeight = 'bold';
-        titleEl.style.marginBottom = '8px';
-
-        const descEl = document.createElement('div');
-        descEl.textContent = node.data.description || '';
-        descEl.style.fontSize = '0.9em';
-        descEl.style.opacity = '0.8';
-
-        node.update = () => {
-            titleEl.textContent = node.data.name || 'Status';
-            descEl.textContent = node.data.description || '';
-            node.data.style.background = node.data.color_code || '#3B82F6';
-        };
+        const titleControl = new TitleControl(this.editor, 'title', node);
+        const descControl = new DescriptionControl(this.editor, 'description', node);
 
         return node
-            .addControl(new Rete.Control('title', { element: titleEl }))
-            .addControl(new Rete.Control('description', { element: descEl }));
+            .addControl(titleControl)
+            .addControl(descControl);
     }
 
-    async createNode(data) {
-        const node = await this.createNode();
+    async createNode(data = {}) {
+        const node = new Rete.Node('Status');
         node.data = {
-            ...node.data,
             ...data,
+            component: 'Status',
             style: {
                 background: data.color_code || '#3B82F6',
                 color: '#ffffff',
@@ -56,6 +65,8 @@ export class StatusNode extends Rete.Component {
                 padding: '12px'
             }
         };
+
+        await this.build(node);
         return node;
     }
 
