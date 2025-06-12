@@ -2,11 +2,11 @@ import Rete from 'rete';
 
 export class StatusSocket extends Rete.Socket {
     constructor() {
-        super('status');
-        this.name = 'Status';
+        super('Status');
     }
 
+    // Allow connections between status sockets
     compatibleWith(socket) {
-        return this.name === socket.name;
+        return socket instanceof StatusSocket;
     }
 }

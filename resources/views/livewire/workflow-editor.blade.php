@@ -1,3 +1,46 @@
+@push('styles')
+<style>
+    .workflow-editor-canvas {
+        position: relative;
+        overflow: hidden;
+        background-size: 20px 20px;
+        background-image:
+            linear-gradient(to right, #f1f1f1 1px, transparent 1px),
+            linear-gradient(to bottom, #f1f1f1 1px, transparent 1px);
+    }
+
+    .node {
+        background: white !important;
+        border: 1px solid #ccc !important;
+        border-radius: 8px !important;
+        cursor: pointer !important;
+        min-width: 180px !important;
+        height: auto !important;
+        padding: 12px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+
+    .node:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+    }
+
+    .node .input,
+    .node .output {
+        margin: 4px 0 !important;
+    }
+
+    .connection {
+        stroke: #6b7280 !important;
+        stroke-width: 2px !important;
+    }
+
+    .connection.selected {
+        stroke: #3b82f6 !important;
+        stroke-width: 3px !important;
+    }
+</style>
+@endpush
+
 <div id="workflow-editor-container" class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->

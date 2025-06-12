@@ -15,6 +15,10 @@ export class WorkflowEditor {
         this.nodes = new Map();
         this.nodeIdCounter = 1;
         this.components = {};
+
+        // Add CSS to container
+        container.style.position = 'relative';
+        container.style.overflow = 'hidden';
     }
 
     async initialize() {
@@ -22,17 +26,20 @@ export class WorkflowEditor {
             // Create editor instance
             this.editor = new Rete.NodeEditor('workflow@1.0.0', this.container);
 
-            // Register components
-            this.components.status = new StatusNode('Status', this.socket);
-            await this.editor.register(this.components.status);
-
-            // Initialize plugins
-            this.editor.use(ConnectionPlugin);
+            // Initialize area plugin first
             this.editor.use(AreaPlugin, {
                 background: true,
                 snap: false,
-                scaleExtent: { min: 0.1, max: 1.5 }
+                scaleExtent: { min: 0.1, max: 1.5 },
+                translateExtent: { width: 5000, height: 4000 }
             });
+
+            // Then initialize connection plugin
+            this.editor.use(ConnectionPlugin);
+
+            // Register components
+            this.components.status = new StatusNode('Status', this.socket);
+            await this.editor.register(this.components.status);
 
             // Initialize custom context menu
             this.setupContextMenu();
@@ -55,6 +62,7 @@ export class WorkflowEditor {
             console.log('Workflow Editor initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Workflow Editor:', error);
+            throw error;
         }
     }
 
@@ -194,16 +202,19 @@ export class WorkflowEditor {
                 this.updateNodeData(nodeId, updatedData);
             });
 
+            // Force editor to update
+            this.editor.view.resize();
+            this.editor.trigger('process');
+
             console.log('Status node added:', {
                 id: nodeId,
                 position: node.position,
                 data: statusData
             });
 
-            await this.processNodes();
-
         } catch (error) {
             console.error('Failed to add status node:', error);
+            throw error;
         }
     }
 
