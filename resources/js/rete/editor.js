@@ -158,16 +158,16 @@ export async function createEditor(container) {
         }
     });
 
-    const nodes = [new Node(), new Node(), new Node(), new Node()];
-    for (const n of nodes) {
-        await editor.addNode(n);
-    }
+    // const nodes = [new Node(), new Node(), new Node(), new Node()];
+    // for (const n of nodes) {
+    //     await editor.addNode(n);
+    // }
 
-    await editor.addConnection(new Connection(nodes[0], "port", nodes[1], "port"));
-    await editor.addConnection(new Connection(nodes[1], "port", nodes[2], "port"));
+    // await editor.addConnection(new Connection(nodes[0], "port", nodes[1], "port"));
+    // await editor.addConnection(new Connection(nodes[1], "port", nodes[2], "port"));
 
-    await arrange.layout();
-    AreaExtensions.zoomAt(area, editor.getNodes());
+    // await arrange.layout();
+    // AreaExtensions.zoomAt(area, editor.getNodes());
 
     return {
         destroy: () => area.destroy()
