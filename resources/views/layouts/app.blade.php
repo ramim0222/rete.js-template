@@ -6,6 +6,7 @@
     <title>Laravel + Rete.js</title>
 
     @livewireStyles
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap">
     <style>
         html,
         body,
@@ -69,10 +70,51 @@
             });
         }
 
+        function nodeStyle(){
+            // Bold the title elements
+            const titles = document.querySelectorAll('[data-testid="title"]');
+            titles.forEach(title => {
+                title.style.setProperty('font-weight', 'bold', 'important');
+                title.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+            });
+
+            // Hide name control elements
+            const nameControls = document.querySelectorAll('[data-testid="control-name"]');
+            nameControls.forEach(control => {
+                control.style.setProperty('display', 'none', 'important');
+            });
+
+            // Hide color control elements
+            const colorControls = document.querySelectorAll('[data-testid="control-color"]');
+            colorControls.forEach(control => {
+                control.style.setProperty('display', 'none', 'important');
+            });
+
+            // Replace input fields with paragraph tags in description controls
+            const descriptionControls = document.querySelectorAll('[data-testid="control-description"]');
+            descriptionControls.forEach(control => {
+                const input = control.querySelector('input');
+                if (input) {
+                    // Create a new paragraph element
+                    const paragraph = document.createElement('p');
+                    paragraph.textContent = input.value || input.getAttribute('value') || '';
+                    paragraph.style.margin = '5px 0';
+                    paragraph.style.padding = '2px';
+                    paragraph.style.fontFamily = 'Roboto, sans-serif';
+                    paragraph.style.fontSize = '14px';
+                    paragraph.style.color = 'white';
+
+                    // Replace the input with the paragraph
+                    input.parentNode.replaceChild(paragraph, input);
+                }
+            });
+        }
+
         // Apply colors when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Initial application
             setTimeout(applyNodeColors, 100);
+            setTimeout(nodeStyle, 100);
 
             // Also apply when nodes are dynamically added/changed
             const observer = new MutationObserver(function(mutations) {
@@ -86,6 +128,7 @@
                 });
                 if (shouldApply) {
                     setTimeout(applyNodeColors, 100);
+                    setTimeout(nodeStyle, 100);
                 }
             });
 

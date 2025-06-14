@@ -31,8 +31,8 @@ class Node extends ClassicPreset.Node {
     constructor(name = "Status Name", color = "#aabbcc", description = "") {
         super(name);
         this.style = { backgroundColor: '#4CAF50', color: 'white' };
-        this.width = 200;
-        this.height = 240;
+        this.width = 'auto';
+        this.height = 'auto';
 
         this.addInput("port", new ClassicPreset.Input(socket));
         this.addOutput("port", new ClassicPreset.Output(socket));
