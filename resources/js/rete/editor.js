@@ -83,7 +83,14 @@ export async function createEditor(container) {
 
 
                         const node = new Node(name, color || "#aabbcc", description || "");
-                        node.position = [50, 300];
+
+                        // Calculate the center of the container
+                        const containerRect = container.getBoundingClientRect();
+                        const centerX = containerRect.width / 2;
+                        const centerY = containerRect.height / 2;
+
+                        // Position the node in the center of the container
+                        node.position = [centerX - 100, centerY - 120];
 
                         await editor.addNode(node);
 
