@@ -141,6 +141,14 @@
         }
 
         function nodeStyle(){
+            // Add condition value mapping
+            const conditionMap = {
+                'equals': 'Equals',
+                'not_equals': 'Not Equals',
+                'greater_than': 'Greater Than',
+                'less_than': 'Less Than'
+            };
+
             // Bold the title elements
             const titles = document.querySelectorAll('[data-testid="title"]');
             titles.forEach(title => {
@@ -203,7 +211,9 @@
                 if (input) {
                     // Create a new paragraph element for condition
                     const paragraph = document.createElement('p');
-                    paragraph.textContent = `Condition: ${input.value || input.getAttribute('value') || ''}`;
+                    const conditionValue = input.value || input.getAttribute('value') || '';
+                    const displayCondition = conditionMap[conditionValue] || conditionValue;
+                    paragraph.textContent = `Condition: ${displayCondition}`;
                     paragraph.style.margin = '5px 0';
                     paragraph.style.padding = '2px';
                     paragraph.style.fontFamily = 'Roboto, sans-serif';
