@@ -195,6 +195,34 @@
                     input.parentNode.replaceChild(paragraph, input);
                 }
             });
+
+            // Handle condition controls
+            const conditionControls = document.querySelectorAll('[data-testid="control-condition"]');
+            conditionControls.forEach(control => {
+                const input = control.querySelector('input');
+                if (input) {
+                    // Create a new paragraph element for condition
+                    const paragraph = document.createElement('p');
+                    paragraph.textContent = `Condition: ${input.value || input.getAttribute('value') || ''}`;
+                    paragraph.style.margin = '5px 0';
+                    paragraph.style.padding = '2px';
+                    paragraph.style.fontFamily = 'Roboto, sans-serif';
+                    paragraph.style.fontSize = '14px';
+                    paragraph.style.fontStyle = 'italic';
+
+                    // Get the background color from the parent node and set contrasting text color
+                    const nodeDiv = control.closest('[data-testid="node"]');
+                    if (nodeDiv) {
+                        const backgroundColor = window.getComputedStyle(nodeDiv).backgroundColor;
+                        paragraph.style.setProperty('color', getContrastColor(backgroundColor), 'important');
+                    } else {
+                        paragraph.style.setProperty('color', '#FFFFFF', 'important');
+                    }
+
+                    // Replace the input with the paragraph
+                    input.parentNode.replaceChild(paragraph, input);
+                }
+            });
         }
 
         // Keep track of node order

@@ -28,7 +28,7 @@ export function submitDrawerForm(data) {
 }
 
 class Node extends ClassicPreset.Node {
-    constructor(name = "Status Name", color = "#aabbcc", description = "") {
+    constructor(name = "Status Name", color = "#aabbcc", description = "", condition = "equals") {
         super(name);
         this.style = { backgroundColor: '#4CAF50', color: 'white' };
         this.width = 'auto';
@@ -46,13 +46,15 @@ class Node extends ClassicPreset.Node {
             }
         }));
         this.addControl("description", new ClassicPreset.InputControl("text", { initial: description }));
+        this.addControl("condition", new ClassicPreset.InputControl("text", { initial: condition }));
     }
 
     data() {
         return {
             name: this.controls.name.value,
             color: this.controls.color.value,
-            description: this.controls.description.value
+            description: this.controls.description.value,
+            condition: this.controls.condition.value
         };
     }
 }
@@ -78,11 +80,10 @@ export async function createEditor(container) {
                 "New Status",
                 async () => {
                     openDrawer(async ({ name, color, description }) => {
-
                         if (!name) return;
 
-
-                        const node = new Node(name, color || "#aabbcc", description || "");
+                        const condition = document.getElementById('nodeCondition').value;
+                        const node = new Node(name, color || "#aabbcc", description || "", condition);
 
                         // Calculate the center of the container
                         const containerRect = container.getBoundingClientRect();
@@ -104,6 +105,7 @@ export async function createEditor(container) {
                                         name,
                                         color,
                                         description,
+                                        condition,
                                         x: node.position[0],
                                         y: node.position[1],
                                         id: node.id,

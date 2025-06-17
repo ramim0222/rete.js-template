@@ -22,9 +22,10 @@ function submitNodeForm() {
     const name = document.getElementById('nodeName').value;
     const color = document.getElementById('nodeColor').value;
     const description = document.getElementById('nodeDesc').value;
+    const condition = document.getElementById('nodeCondition').value;
 
-    if (drawerCallback) drawerCallback({ name, color, description });
-    submitDrawerForm({ name, color, description });
+    if (drawerCallback) drawerCallback({ name, color, description, condition });
+    submitDrawerForm({ name, color, description, condition });
 
 
 

@@ -24,6 +24,14 @@
     <label>Description</label>
     <textarea id="nodeDesc" rows="4" class="drawer-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Description"></textarea><br/><br/>
 
+    <label>Select Condition</label>
+    <select id="nodeCondition" class="drawer-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <option value="equals">Equals</option>
+        <option value="not_equals">Not Equals</option>
+        <option value="greater_than">Greater Than</option>
+        <option value="less_than">Less Than</option>
+    </select>
+
     <button onclick="submitNodeForm()" class="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2">Create Node</button>
     <button onclick="closeDrawer()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2">Close</button>
 </div>
