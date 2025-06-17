@@ -10,11 +10,9 @@
 
     </style>
 
-<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-
     <!-- Drawer -->
 <div id="nodeDrawer" style="position: fixed; top: 0; right:-500px;  width: 400px; height: 100%; background: #fff; box-shadow: -2px 0 10px rgba(0,0,0,0.3); transition: right 0.3s; padding: 20px; z-index: 9999;">
-    <h3>Create Node</h3>
+    <h3 id="drawerTitle">Create Node</h3>
     <label>Name</label>
     <input type="text" id="nodeName" class="drawer-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Status Name" /><br/><br/>
 
@@ -32,30 +30,178 @@
         <option value="less_than">Less Than</option>
     </select>
 
-    <button onclick="submitNodeForm()" class="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2">Create Node</button>
+    <button id="submitButton" onclick="submitNodeForm()" class="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2">Create Node</button>
     <button onclick="closeDrawer()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2">Close</button>
 </div>
 
 <script>
     let drawerCallback = null;
-    window.submitNodeForm = submitNodeForm;
-    // window.closeDrawer = closeDrawer;
+    let isEditing = false;
 
+    function openDrawer(callback, editing = false) {
+        drawerCallback = callback;
+        isEditing = editing;
+        document.getElementById('drawerTitle').textContent = editing ? 'Edit Node' : 'Create Node';
+        document.getElementById('submitButton').textContent = editing ? 'Save Changes' : 'Create Node';
+        document.getElementById('nodeDrawer').style.right = '0';
+    }
 
-function submitNodeForm() {
-    const name = document.getElementById('nodeName').value;
-    const color = document.getElementById('nodeColor').value;
-    const description = document.getElementById('nodeDesc').value;
-    const condition = document.getElementById('nodeCondition').value;
+    function submitNodeForm() {
+        const name = document.getElementById('nodeName').value;
+        const color = document.getElementById('nodeColor').value;
+        const description = document.getElementById('nodeDesc').value;
+        const condition = document.getElementById('nodeCondition').value;
 
-    if (drawerCallback) drawerCallback({ name, color, description, condition });
-    closeDrawer();
-}
+        if (drawerCallback) {
+            drawerCallback({ name, color, description, condition });
+        }
+        closeDrawer();
+    }
 
     function closeDrawer() {
         document.getElementById('nodeDrawer').style.right = '-500px';
+        if (!isEditing) {
+            // Only clear form if we're not editing
+            document.getElementById('nodeName').value = '';
+            document.getElementById('nodeColor').value = '';
+            document.getElementById('nodeDesc').value = '';
+            document.getElementById('nodeCondition').value = 'equals';
+        }
         drawerCallback = null;
+        isEditing = false;
     }
+
+    window.openDrawer = openDrawer;
+    window.submitNodeForm = submitNodeForm;
+    window.closeDrawer = closeDrawer;
+
+    function handlePorts() {
+        const nodes = document.querySelectorAll('[data-testid="node"]');
+        
+        // Only proceed if we have nodes
+        if (!nodes.length) return;
+
+        // Update node order list with any new nodes
+        nodes.forEach((node) => {
+            if (!node.id) {
+                node.id = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            }
+            if (!nodeOrder.includes(node.id)) {
+                nodeOrder.push(node.id);
+            }
+        });
+
+        // Clean up nodeOrder to remove nodes that no longer exist
+        nodeOrder = nodeOrder.filter(id => document.getElementById(id));
+
+        // Get first and last node IDs from our tracked order
+        const firstNodeId = nodeOrder[0];
+        const lastNodeId = nodeOrder[nodeOrder.length - 1];
+
+        nodes.forEach((node) => {
+            // Handle input ports
+            const inputPorts = node.querySelectorAll('[data-testid="input-port"]');
+            inputPorts.forEach((input, portIndex) => {
+                if (!input.id) {
+                    input.id = `input-port-${node.id}-${portIndex}-${Date.now()}`;
+                }
+
+                if (node.id === firstNodeId) {
+                    input.style.setProperty('display', 'none', 'important');
+                } else {
+                    input.style.removeProperty('display');
+                }
+            });
+
+            // Handle output ports
+            const outputPorts = node.querySelectorAll('[data-testid="output-port"]');
+            outputPorts.forEach((output, portIndex) => {
+                if (!output.id) {
+                    output.id = `output-port-${node.id}-${portIndex}-${Date.now()}`;
+                }
+
+                if (node.id === lastNodeId) {
+                    output.style.setProperty('display', 'none', 'important');
+                } else {
+                    output.style.removeProperty('display');
+                }
+            });
+        });
+    }
+
+    // Debounce function to limit how often we update
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Debounced versions of our update functions
+    const debouncedApplyColors = debounce(applyNodeColors, 250);
+    const debouncedNodeStyle = debounce(nodeStyle, 250);
+    const debouncedHandlePorts = debounce(handlePorts, 250);
+
+    // Track if we're currently processing updates
+    let isProcessingUpdates = false;
+
+    // Apply colors when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial application with a slight delay to ensure DOM is ready
+        setTimeout(() => {
+            debouncedApplyColors();
+            debouncedNodeStyle();
+            debouncedHandlePorts();
+        }, 100);
+
+        // Create a single observer for all changes
+        const observer = new MutationObserver(function(mutations) {
+            if (isProcessingUpdates) return;
+            
+            let shouldApply = false;
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' ||
+                    (mutation.type === 'attributes' && mutation.attributeName === 'data-testid')) {
+                    shouldApply = true;
+                    break;
+                }
+            }
+
+            if (shouldApply) {
+                isProcessingUpdates = true;
+                Promise.all([
+                    debouncedApplyColors(),
+                    debouncedNodeStyle(),
+                    debouncedHandlePorts()
+                ]).finally(() => {
+                    isProcessingUpdates = false;
+                });
+            }
+        });
+
+        // Observe only the editor container
+        const editorContainer = document.getElementById('editor');
+        if (editorContainer) {
+            observer.observe(editorContainer, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['data-testid']
+            });
+        }
+
+        // Handle color input changes
+        document.addEventListener('input', (e) => {
+            if (e.target.closest('[data-testid="control-color"]')) {
+                debouncedApplyColors();
+            }
+        });
+    });
 </script>
 
 

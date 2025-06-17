@@ -6,61 +6,51 @@ import { AutoArrangePlugin, Presets as ArrangePresets, ArrangeAppliers } from "r
 import { ContextMenuPlugin, Presets as ContextMenuPresets } from "rete-context-menu-plugin";
 import { easeInOut } from "popmotion";
 import { insertableNodes } from "./insert-node/index";
+import { createRoot } from 'react-dom/client';
 
 const socket = new ClassicPreset.Socket("socket");
 
 let drawerCallback = null;
 
-function openDrawer(callback) {
-    drawerCallback = callback;
-    document.getElementById("nodeDrawer").style.right = "0";
+function openDrawer(callback, editing = false) {
+    if (window.openDrawer) {
+        // Use the global openDrawer function if available
+        window.openDrawer(callback, editing);
+    } else {
+        // Fallback to basic functionality
+        drawerCallback = callback;
+        document.getElementById("nodeDrawer").style.right = "0";
+    }
 }
 
 export function submitDrawerForm(data) {
     if (drawerCallback) {
-        drawerCallback(data); // ← this is where the data arrives!
+        drawerCallback(data);
         drawerCallback = null;
     }
-    const name = document.getElementById('nodeName').value = "";
-    const color = document.getElementById('nodeColor').value = "";
-    const description = document.getElementById('nodeDesc').value = "";
     document.getElementById("nodeDrawer").style.right = "-100%";
 }
 
 class Node extends ClassicPreset.Node {
     constructor(name = "Status Name", color = "#aabbcc", description = "", condition = "equals") {
-        super(name);
-        this.style = { backgroundColor: '#4CAF50', color: 'white' };
+        super(String(name || "Status Name"));
+        this.style = { backgroundColor: color, color: 'white' };
         this.width = 'auto';
         this.height = 'auto';
+        this.label = String(name || "Status Name");
 
         this.addInput("port", new ClassicPreset.Input(socket));
         this.addOutput("port", new ClassicPreset.Output(socket));
 
-        this.addControl("name", new ClassicPreset.InputControl("text", { initial: name }));
-        this.addControl("color", new ClassicPreset.InputControl("text", {
-            initial: color,
-            change: () => {
-                const el = document.querySelector(`[data-node-id="${this.id}"]`);
-                if (el) el.style.background = "#c42e2e";
-            }
-        }));
+        this.addControl("name", new ClassicPreset.InputControl("text", { initial: String(name || "Status Name") }));
+        this.addControl("color", new ClassicPreset.InputControl("text", { initial: color }));
         this.addControl("description", new ClassicPreset.InputControl("text", { initial: description }));
         this.addControl("condition", new ClassicPreset.InputControl("text", { initial: condition }));
     }
 
-    clone() {
-        return new Node(
-            this.controls.name.value,
-            this.controls.color.value,
-            this.controls.description.value,
-            this.controls.condition.value
-        );
-    }
-
     data() {
         return {
-            name: this.controls.name.value,
+            name: String(this.controls.name.value || "Status Name"),
             color: this.controls.color.value,
             description: this.controls.description.value,
             condition: this.controls.condition.value
@@ -71,17 +61,51 @@ class Node extends ClassicPreset.Node {
 class Connection extends ClassicPreset.Connection {}
 
 function applyNodeColor(node) {
-    const el = document.querySelector(`[data-node-id="${node.id}"]`);
-    if (el && node.controls?.color?.value) {
-        el.style.background = node.controls.color.value;
-    }
+    // Add a small delay to ensure DOM is ready
+    setTimeout(() => {
+        const el = document.querySelector(`[data-node-id="${node.id}"]`);
+        if (el && node.controls?.color?.value) {
+            // Apply background color
+            el.style.background = node.controls.color.value;
+            
+            // Update title
+            const titleEl = el.querySelector('[data-testid="title"]');
+            if (titleEl) {
+                titleEl.textContent = node.controls.name.value;
+            }
+
+            // Update description
+            const descEl = el.querySelector('[data-testid="control-description"] p');
+            if (descEl) {
+                descEl.textContent = node.controls.description.value || '';
+            }
+
+            // Update condition
+            const condEl = el.querySelector('[data-testid="control-condition"] p');
+            if (condEl) {
+                const conditionMap = {
+                    'equals': 'Equals',
+                    'not_equals': 'Not Equals',
+                    'greater_than': 'Greater Than',
+                    'less_than': 'Less Than'
+                };
+                const conditionValue = node.controls.condition.value;
+                condEl.textContent = `Condition: ${conditionMap[conditionValue] || conditionValue}`;
+            }
+
+            // Force a re-render of the node style
+            if (window.nodeStyle) {
+                window.nodeStyle();
+            }
+        }
+    }, 50); // Small delay to ensure DOM updates are complete
 }
 
 export async function createEditor(container) {
     const editor = new NodeEditor();
     const area = new AreaPlugin(container);
     const connection = new ConnectionPlugin();
-    const render = new ReactPlugin();
+    const render = new ReactPlugin({ createRoot });
     const arrange = new AutoArrangePlugin();
     const contextMenu = new ContextMenuPlugin({
         items(context, plugin) {
@@ -93,18 +117,22 @@ export async function createEditor(container) {
                             label: 'New Status',
                             key: 'new-status',
                             handler: async () => {
-                                openDrawer(async ({ name, color, description }) => {
-                                    if (!name) return;
+                                openDrawer(async (data) => {
+                                    if (!data || !data.name) return;
 
-                                    const condition = document.getElementById('nodeCondition').value;
-                                    const node = new Node(name, color || "#aabbcc", description || "", condition);
+                                    const node = new Node(
+                                        data.name,
+                                        data.color || "#aabbcc",
+                                        data.description || "",
+                                        data.condition || "equals"
+                                    );
 
                                     // Calculate the center of the container
                                     const containerRect = container.getBoundingClientRect();
                                     const centerX = containerRect.width / 2;
                                     const centerY = containerRect.height / 2;
 
-                                    // Position the node in the center of the container
+                                    // Position the node in the center
                                     node.position = [centerX - 100, centerY - 120];
 
                                     await editor.addNode(node);
@@ -116,10 +144,10 @@ export async function createEditor(container) {
 
                                             if (window.Livewire?.emit) {
                                                 Livewire.emit("saveTransactionNode", {
-                                                    name,
-                                                    color,
-                                                    description,
-                                                    condition,
+                                                    name: data.name,
+                                                    color: data.color,
+                                                    description: data.description,
+                                                    condition: data.condition,
                                                     x: node.position[0],
                                                     y: node.position[1],
                                                     id: node.id,
@@ -128,7 +156,7 @@ export async function createEditor(container) {
                                         }
                                         return ctx;
                                     });
-                                });
+                                }, false); // Pass false to indicate we're creating
                             }
                         }
                     ]
@@ -146,12 +174,48 @@ export async function createEditor(container) {
                             }
                         },
                         {
-                            label: 'Clone',
-                            key: 'clone',
+                            label: 'Edit',
+                            key: 'edit',
                             handler: async () => {
-                                const cloned = context.clone();
-                                cloned.position = [context.position[0] + 10, context.position[1] + 10];
-                                await editor.addNode(cloned);
+                                // Pre-populate the form with current values
+                                document.getElementById('nodeName').value = context.controls.name.value;
+                                document.getElementById('nodeColor').value = context.controls.color.value;
+                                document.getElementById('nodeDesc').value = context.controls.description.value;
+                                document.getElementById('nodeCondition').value = context.controls.condition.value;
+
+                                // Open drawer in edit mode
+                                openDrawer(async ({ name, color, description, condition }) => {
+                                    if (!name) return;
+                                    
+                                    // Update the node's controls
+                                    context.controls.name.setValue(name);
+                                    context.controls.color.setValue(color || "#aabbcc");
+                                    context.controls.description.setValue(description || "");
+                                    context.controls.condition.setValue(condition);
+
+                                    // Update the node's label and style
+                                    context.label = name;
+                                    context.style = { backgroundColor: color || "#aabbcc", color: 'white' };
+
+                                    // Force update
+                                    applyNodeColor(context);
+                                    
+                                    // Trigger area update
+                                    area.update('node');
+
+                                    // Emit the update event to Livewire
+                                    if (window.Livewire?.emit) {
+                                        Livewire.emit("saveTransactionNode", {
+                                            name,
+                                            color,
+                                            description,
+                                            condition,
+                                            x: context.position[0],
+                                            y: context.position[1],
+                                            id: context.id,
+                                        });
+                                    }
+                                }, true); // Pass true to indicate we're editing
                             }
                         }
                     ]

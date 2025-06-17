@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>Laravel + Rete.js</title>
 
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap">
     <style>
@@ -340,6 +341,7 @@
 
         // Also expose the function globally so it can be called from React/Livewire
         window.applyNodeColors = applyNodeColors;
+        window.nodeStyle = nodeStyle;
     </script>
 </head>
 
