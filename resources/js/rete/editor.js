@@ -49,6 +49,15 @@ class Node extends ClassicPreset.Node {
         this.addControl("condition", new ClassicPreset.InputControl("text", { initial: condition }));
     }
 
+    clone() {
+        return new Node(
+            this.controls.name.value,
+            this.controls.color.value,
+            this.controls.description.value,
+            this.controls.condition.value
+        );
+    }
+
     data() {
         return {
             name: this.controls.name.value,
@@ -75,49 +84,84 @@ export async function createEditor(container) {
     const render = new ReactPlugin();
     const arrange = new AutoArrangePlugin();
     const contextMenu = new ContextMenuPlugin({
-        items: ContextMenuPresets.classic.setup([
-            [
-                "New Status",
-                async () => {
-                    openDrawer(async ({ name, color, description }) => {
-                        if (!name) return;
+        items(context, plugin) {
+            if (context === 'root') {
+                return {
+                    searchBar: false,
+                    list: [
+                        {
+                            label: 'New Status',
+                            key: 'new-status',
+                            handler: async () => {
+                                openDrawer(async ({ name, color, description }) => {
+                                    if (!name) return;
 
-                        const condition = document.getElementById('nodeCondition').value;
-                        const node = new Node(name, color || "#aabbcc", description || "", condition);
+                                    const condition = document.getElementById('nodeCondition').value;
+                                    const node = new Node(name, color || "#aabbcc", description || "", condition);
 
-                        // Calculate the center of the container
-                        const containerRect = container.getBoundingClientRect();
-                        const centerX = containerRect.width / 2;
-                        const centerY = containerRect.height / 2;
+                                    // Calculate the center of the container
+                                    const containerRect = container.getBoundingClientRect();
+                                    const centerX = containerRect.width / 2;
+                                    const centerY = containerRect.height / 2;
 
-                        // Position the node in the center of the container
-                        node.position = [centerX - 100, centerY - 120];
+                                    // Position the node in the center of the container
+                                    node.position = [centerX - 100, centerY - 120];
 
-                        await editor.addNode(node);
+                                    await editor.addNode(node);
 
-                        // Wait until node is fully rendered before using its id
-                        render.addPipe((ctx) => {
-                            if (ctx.type === "rendered" && ctx.data.type === "node" && ctx.data.payload === node) {
-                                applyNodeColor(node);
+                                    // Wait until node is fully rendered before using its id
+                                    render.addPipe((ctx) => {
+                                        if (ctx.type === "rendered" && ctx.data.type === "node" && ctx.data.payload === node) {
+                                            applyNodeColor(node);
 
-                                if (window.Livewire?.emit) {
-                                    Livewire.emit("saveTransactionNode", {
-                                        name,
-                                        color,
-                                        description,
-                                        condition,
-                                        x: node.position[0],
-                                        y: node.position[1],
-                                        id: node.id,
+                                            if (window.Livewire?.emit) {
+                                                Livewire.emit("saveTransactionNode", {
+                                                    name,
+                                                    color,
+                                                    description,
+                                                    condition,
+                                                    x: node.position[0],
+                                                    y: node.position[1],
+                                                    id: node.id,
+                                                });
+                                            }
+                                        }
+                                        return ctx;
                                     });
-                                }
+                                });
                             }
-                            return ctx;
-                        });
-                    });
-                }
-            ]
-        ])
+                        }
+                    ]
+                };
+            }
+            if (context instanceof Node) {
+                return {
+                    searchBar: false,
+                    list: [
+                        {
+                            label: 'Delete',
+                            key: 'delete',
+                            handler: async () => {
+                                await editor.removeNode(context);
+                            }
+                        },
+                        {
+                            label: 'Clone',
+                            key: 'clone',
+                            handler: async () => {
+                                const cloned = context.clone();
+                                cloned.position = [context.position[0] + 10, context.position[1] + 10];
+                                await editor.addNode(cloned);
+                            }
+                        }
+                    ]
+                };
+            }
+            return {
+                searchBar: false,
+                list: []
+            };
+        }
     });
 
     render.addPreset(ReactPresets.classic.setup());
