@@ -67,7 +67,7 @@ function applyNodeColor(node) {
         if (el && node.controls?.color?.value) {
             // Apply background color
             el.style.background = node.controls.color.value;
-            
+
             // Update title
             const titleEl = el.querySelector('[data-testid="title"]');
             if (titleEl) {
@@ -142,17 +142,17 @@ export async function createEditor(container) {
                                         if (ctx.type === "rendered" && ctx.data.type === "node" && ctx.data.payload === node) {
                                             applyNodeColor(node);
 
-                                            if (window.Livewire?.emit) {
-                                                Livewire.emit("saveTransactionNode", {
-                                                    name: data.name,
-                                                    color: data.color,
-                                                    description: data.description,
-                                                    condition: data.condition,
-                                                    x: node.position[0],
-                                                    y: node.position[1],
-                                                    id: node.id,
-                                                });
-                                            }
+                                    if (window.Livewire?.emit) {
+                                        Livewire.emit("saveTransactionNode", {
+                                            name: data.name,
+                                            color: data.color,
+                                            description: data.description,
+                                            condition: data.condition,
+                                            x: node.position[0],
+                                            y: node.position[1],
+                                            id: node.id,
+                                        });
+                                    }
                                         }
                                         return ctx;
                                     });
@@ -170,7 +170,32 @@ export async function createEditor(container) {
                             label: 'Delete',
                             key: 'delete',
                             handler: async () => {
-                                await editor.removeNode(context);
+                                try {
+                                    // Get all connections
+                                    const connections = editor.getConnections();
+                                    
+                                    // Remove all connections associated with this node
+                                    for (const connection of connections) {
+                                        if (connection.source === context.id || connection.target === context.id) {
+                                            await editor.removeConnection(connection.id);
+                                        }
+                                    }
+                                    
+                                    // Remove the node
+                                    await editor.removeNode(context.id);
+
+                                    // Emit delete event to Livewire if available
+                                    if (window.Livewire?.emit) {
+                                        Livewire.emit("deleteTransactionNode", {
+                                            id: context.id
+                                        });
+                                    }
+
+                                    // Update the area
+                                    area.update('node');
+                                } catch (error) {
+                                    console.error('Error deleting node:', error);
+                                }
                             }
                         },
                         {
