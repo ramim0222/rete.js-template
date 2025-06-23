@@ -55,9 +55,15 @@
             // Remove # if present
             hex = hex.replace('#', '');
 
-            // Handle shorthand hex
+            // Handle shorthand hex (e.g., "abc" -> "aabbcc")
             if (hex.length === 3) {
                 hex = hex.split('').map(char => char + char).join('');
+            }
+
+            // Validate hex format
+            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+                console.warn('Invalid hex color format:', hex);
+                return { r: 170, g: 187, b: 204 }; // Default fallback color
             }
 
             const r = parseInt(hex.substring(0, 2), 16);
@@ -68,35 +74,57 @@
         }
 
         function parseColor(color) {
-            if (color.startsWith('#')) {
-                return hexToRgb(color);
-            } else if (color.startsWith('rgb')) {
-                const matches = color.match(/\d+/g);
-                return {
-                    r: parseInt(matches[0]),
-                    g: parseInt(matches[1]),
-                    b: parseInt(matches[2])
-                };
-            } else {
-                // For named colors, create a temporary div to get RGB values
-                const temp = document.createElement('div');
-                temp.style.color = color;
-                document.body.appendChild(temp);
-                const computedColor = window.getComputedStyle(temp).color;
-                document.body.removeChild(temp);
-                const matches = computedColor.match(/\d+/g);
-                return {
-                    r: parseInt(matches[0]),
-                    g: parseInt(matches[1]),
-                    b: parseInt(matches[2])
-                };
+            if (!color) {
+                return { r: 170, g: 187, b: 204 }; // Default fallback
             }
+
+            // Handle hex colors (with or without #)
+            if (color.startsWith('#') || /^[0-9A-Fa-f]{3}$/.test(color) || /^[0-9A-Fa-f]{6}$/.test(color)) {
+                return hexToRgb(color);
+            } 
+            // Handle rgb/rgba colors
+            else if (color.startsWith('rgb')) {
+                const matches = color.match(/\d+/g);
+                if (matches && matches.length >= 3) {
+                    return {
+                        r: parseInt(matches[0]),
+                        g: parseInt(matches[1]),
+                        b: parseInt(matches[2])
+                    };
+                }
+            } 
+            // Handle named colors
+            else {
+                try {
+                    // Create a temporary element to parse named colors
+                    const temp = document.createElement('div');
+                    temp.style.color = color;
+                    document.body.appendChild(temp);
+                    const computedColor = window.getComputedStyle(temp).color;
+                    document.body.removeChild(temp);
+                    
+                    const matches = computedColor.match(/\d+/g);
+                    if (matches && matches.length >= 3) {
+                        return {
+                            r: parseInt(matches[0]),
+                            g: parseInt(matches[1]),
+                            b: parseInt(matches[2])
+                        };
+                    }
+                } catch (e) {
+                    console.error('Error parsing named color:', e);
+                }
+            }
+            
+            // Fallback to default color if parsing fails
+            console.warn('Could not parse color:', color, 'using default');
+            return { r: 170, g: 187, b: 204 };
         }
 
         function getContrastColor(backgroundColor) {
             try {
                 const rgb = parseColor(backgroundColor);
-                // Calculate relative luminance
+                // Calculate relative luminance using the standard formula
                 const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
                 return luminance > 0.5 ? '#000000' : '#FFFFFF';
             } catch (e) {
@@ -104,6 +132,40 @@
                 return '#FFFFFF'; // Default to white text if there's an error
             }
         }
+
+        function isValidColor(color) {
+            if (!color) return false;
+            
+            // Check hex format
+            if (color.startsWith('#')) {
+                const hex = color.substring(1);
+                return /^[0-9A-Fa-f]{3}$/.test(hex) || /^[0-9A-Fa-f]{6}$/.test(hex);
+            }
+            
+            // Check if it's a hex without #
+            if (/^[0-9A-Fa-f]{3}$/.test(color) || /^[0-9A-Fa-f]{6}$/.test(color)) {
+                return true;
+            }
+            
+            // Check rgb format
+            if (color.startsWith('rgb')) {
+                return /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/.test(color) ||
+                    /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/.test(color);
+            }
+            
+            // For named colors, try to parse them
+            try {
+                const temp = document.createElement('div');
+                temp.style.color = color;
+                document.body.appendChild(temp);
+                const computed = window.getComputedStyle(temp).color;
+                document.body.removeChild(temp);
+                return computed !== '';
+            } catch (e) {
+                return false;
+            }
+        }
+
 
         function applyNodeColor(node) {
             const applyImmediate = () => {
@@ -125,6 +187,13 @@
                 
                 if (el && node.controls?.color?.value) {
                     const color = node.controls.color.value;
+                    
+                    // Validate color before applying
+                    if (!isValidColor(color)) {
+                        console.warn('Invalid color detected:', color, 'for node:', node.id);
+                        return false;
+                    }
+                    
                     const textColor = getContrastColor(color);
                     
                     // Apply background color with !important to override existing styles
