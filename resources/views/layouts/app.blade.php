@@ -105,40 +105,99 @@
             }
         }
 
-        function applyNodeColors() {
-            // Find all color control spans
-            const colorControls = document.querySelectorAll('[data-testid="control-color"]');
-
-            colorControls.forEach(colorControl => {
-                // Get the first input field inside this span
-                const colorInput = colorControl.querySelector('input');
-
-                if (colorInput && colorInput.value) {
-                    // Find the closest parent div with data-testid="node"
-                    const nodeDiv = colorControl.closest('[data-testid="node"]');
-
-                    if (nodeDiv) {
-                        const backgroundColor = colorInput.value;
-                        const textColor = getContrastColor(backgroundColor);
-
-                        // Apply the background color
-                        nodeDiv.style.setProperty('background-color', backgroundColor, 'important');
-                        nodeDiv.style.setProperty('background', backgroundColor, 'important');
-
-                        // Apply contrasting text color to title
-                        const titleElement = nodeDiv.querySelector('[data-testid="title"]');
-                        if (titleElement) {
-                            titleElement.style.setProperty('color', textColor, 'important');
-                        }
-
-                        // Apply contrasting text color to description
-                        const descriptionElement = nodeDiv.querySelector('[data-testid="control-description"] p');
-                        if (descriptionElement) {
-                            descriptionElement.style.setProperty('color', textColor, 'important');
+        function applyNodeColor(node) {
+            const applyImmediate = () => {
+                // Try multiple selectors to find the node element
+                let el = document.querySelector(`[data-node-id="${node.id}"]`);
+                
+                if (!el) {
+                    // Fallback: find by checking all nodes and match by position or other criteria
+                    const allNodes = document.querySelectorAll('[data-testid="node"]');
+                    for (const nodeEl of allNodes) {
+                        if (!nodeEl.dataset.nodeId) {
+                            // This might be our new node - assign the ID and use it
+                            nodeEl.dataset.nodeId = node.id;
+                            el = nodeEl;
+                            break;
                         }
                     }
                 }
-            });
+                
+                if (el && node.controls?.color?.value) {
+                    const color = node.controls.color.value;
+                    const textColor = getContrastColor(color);
+                    
+                    // Apply background color with !important to override existing styles
+                    el.style.setProperty('background-color', color, 'important');
+                    el.style.setProperty('background', color, 'important');
+                    el.style.setProperty('border', 'none', 'important');
+
+                    // Update title immediately
+                    const titleEl = el.querySelector('[data-testid="title"]');
+                    if (titleEl) {
+                        titleEl.textContent = node.controls.name.value || node.label;
+                        titleEl.style.setProperty('color', textColor, 'important');
+                        titleEl.style.setProperty('font-weight', 'bold', 'important');
+                        titleEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+                    }
+
+                    // Update description immediately
+                    const descEl = el.querySelector('[data-testid="control-description"] p');
+                    if (descEl) {
+                        descEl.textContent = node.controls.description.value || '';
+                        descEl.style.setProperty('color', textColor, 'important');
+                        descEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+                        descEl.style.setProperty('font-size', '14px', 'important');
+                        descEl.style.setProperty('margin', '5px 0', 'important');
+                        descEl.style.setProperty('padding', '2px', 'important');
+                    }
+
+                    // Update condition immediately
+                    const condEl = el.querySelector('[data-testid="control-condition"] p');
+                    if (condEl) {
+                        const conditionMap = {
+                            'equals': 'Equals',
+                            'not_equals': 'Not Equals',
+                            'greater_than': 'Greater Than',
+                            'less_than': 'Less Than'
+                        };
+                        const conditionValue = node.controls.condition.value;
+                        condEl.textContent = `Condition: ${conditionMap[conditionValue] || conditionValue}`;
+                        condEl.style.setProperty('color', textColor, 'important');
+                        condEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+                        condEl.style.setProperty('font-size', '14px', 'important');
+                        condEl.style.setProperty('font-style', 'italic', 'important');
+                        condEl.style.setProperty('margin', '5px 0', 'important');
+                        condEl.style.setProperty('padding', '2px', 'important');
+                    }
+
+                    // Hide control elements immediately
+                    const nameControl = el.querySelector('[data-testid="control-name"]');
+                    if (nameControl) {
+                        nameControl.style.setProperty('display', 'none', 'important');
+                    }
+
+                    const colorControl = el.querySelector('[data-testid="control-color"]');
+                    if (colorControl) {
+                        colorControl.style.setProperty('display', 'none', 'important');
+                    }
+
+                    return true; // Success
+                }
+                return false; // Failed to find element or apply styles
+            };
+
+            // Try immediate application first
+            if (!applyImmediate()) {
+                // If immediate application failed, try with small delays
+                setTimeout(() => {
+                    if (!applyImmediate()) {
+                        setTimeout(() => {
+                            applyImmediate();
+                        }, 100);
+                    }
+                }, 50);
+            }
         }
 
         function nodeStyle(){
@@ -241,36 +300,60 @@
 
         function handlePorts() {
             const nodes = document.querySelectorAll('[data-testid="node"]');
+            
+            if (nodes.length === 0) return;
 
             // Update node order list with any new nodes
             nodes.forEach((node) => {
                 if (!node.id) {
                     node.id = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 }
-                if (!nodeOrder.includes(node.id)) {
-                    nodeOrder.push(node.id);
+                
+                // Use data-node-id if available, fallback to element id
+                const nodeIdentifier = node.dataset.nodeId || node.id;
+                
+                if (!nodeOrder.includes(nodeIdentifier)) {
+                    nodeOrder.push(nodeIdentifier);
                 }
             });
 
             // Clean up nodeOrder to remove nodes that no longer exist
-            nodeOrder = nodeOrder.filter(id => document.getElementById(id));
+            nodeOrder = nodeOrder.filter(id => {
+                return document.getElementById(id) || document.querySelector(`[data-node-id="${id}"]`);
+            });
 
-            // Get first and last node IDs from our tracked order
+            // If no nodes in order, rebuild the order based on current DOM
+            if (nodeOrder.length === 0 && nodes.length > 0) {
+                nodes.forEach(node => {
+                    const nodeIdentifier = node.dataset.nodeId || node.id;
+                    nodeOrder.push(nodeIdentifier);
+                });
+            }
+
+            // Get first and last node identifiers from our tracked order
             const firstNodeId = nodeOrder[0];
             const lastNodeId = nodeOrder[nodeOrder.length - 1];
 
+            console.log('Node order:', nodeOrder);
+            console.log('First node:', firstNodeId, 'Last node:', lastNodeId);
+
             nodes.forEach((node) => {
+                const nodeIdentifier = node.dataset.nodeId || node.id;
+                
                 // Handle input ports
                 const inputPorts = node.querySelectorAll('[data-testid="input-port"]');
                 inputPorts.forEach((input, portIndex) => {
                     if (!input.id) {
-                        input.id = `input-port-${node.id}-${portIndex}-${Date.now()}`;
+                        input.id = `input-port-${nodeIdentifier}-${portIndex}-${Date.now()}`;
                     }
 
-                    if (node.id === firstNodeId) {
+                    if (nodeIdentifier === firstNodeId) {
                         input.style.setProperty('display', 'none', 'important');
+                        console.log('Hiding input port for first node:', nodeIdentifier);
                     } else {
                         input.style.removeProperty('display');
+                        input.style.setProperty('display', 'block', 'important');
+                        console.log('Showing input port for node:', nodeIdentifier);
                     }
                 });
 
@@ -278,18 +361,19 @@
                 const outputPorts = node.querySelectorAll('[data-testid="output-port"]');
                 outputPorts.forEach((output, portIndex) => {
                     if (!output.id) {
-                        output.id = `output-port-${node.id}-${portIndex}-${Date.now()}`;
+                        output.id = `output-port-${nodeIdentifier}-${portIndex}-${Date.now()}`;
                     }
 
-                    if (node.id === lastNodeId) {
+                    if (nodeIdentifier === lastNodeId) {
                         output.style.setProperty('display', 'none', 'important');
+                        console.log('Hiding output port for last node:', nodeIdentifier);
                     } else {
                         output.style.removeProperty('display');
+                        output.style.setProperty('display', 'block', 'important');
+                        console.log('Showing output port for node:', nodeIdentifier);
                     }
                 });
             });
-
-            console.log('Node order:', nodeOrder);
         }
 
         // Apply colors when page loads
@@ -299,20 +383,52 @@
             setTimeout(nodeStyle, 100);
             setTimeout(handlePorts, 100);
 
-            // Also apply when nodes are dynamically added/changed
+            // Enhanced MutationObserver that properly handles React updates
             const observer = new MutationObserver(function(mutations) {
                 let shouldApply = false;
+                let shouldHandlePorts = false;
+                
                 mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList' ||
-                        (mutation.type === 'attributes' && mutation.attributeName === 'data-testid')
-                        ) {
+                    if (mutation.type === 'childList') {
+                        // Check if nodes were added or removed
+                        const addedNodes = Array.from(mutation.addedNodes);
+                        const removedNodes = Array.from(mutation.removedNodes);
+                        
+                        const hasNodeChanges = addedNodes.some(node => 
+                            node.nodeType === 1 && (
+                                node.hasAttribute?.('data-testid') ||
+                                node.querySelector?.('[data-testid="node"]')
+                            )
+                        ) || removedNodes.some(node => 
+                            node.nodeType === 1 && (
+                                node.hasAttribute?.('data-testid') ||
+                                node.querySelector?.('[data-testid="node"]')
+                            )
+                        );
+                        
+                        if (hasNodeChanges) {
+                            shouldApply = true;
+                            shouldHandlePorts = true;
+                        }
+                    } else if (mutation.type === 'attributes' && 
+                            (mutation.attributeName === 'data-testid' || 
+                                mutation.attributeName === 'data-node-id')) {
                         shouldApply = true;
+                        shouldHandlePorts = true;
                     }
                 });
+                
                 if (shouldApply) {
-                    setTimeout(applyNodeColors, 100);
-                    setTimeout(nodeStyle, 100);
-                    setTimeout(handlePorts, 100);
+                    setTimeout(() => {
+                        applyNodeColors();
+                        nodeStyle();
+                    }, 50);
+                }
+                
+                if (shouldHandlePorts) {
+                    setTimeout(() => {
+                        handlePorts();
+                    }, 100);
                 }
             });
 
@@ -321,10 +437,10 @@
                 childList: true,
                 subtree: true,
                 attributes: true,
-                attributeFilter: ['data-testid']
+                attributeFilter: ['data-testid', 'data-node-id']
             });
 
-            // Also listen for input changes on color fields
+            // Listen for input changes on color fields
             document.addEventListener('input', function(e) {
                 if (e.target.closest('[data-testid="control-color"]')) {
                     setTimeout(applyNodeColors, 50);
@@ -338,6 +454,12 @@
                 }
             });
         });
+
+        if (!window.nodeOrder) {
+            window.nodeOrder = [];
+        }
+
+        window.handlePorts = handlePorts;
 
         // Also expose the function globally so it can be called from React/Livewire
         window.applyNodeColors = applyNodeColors;

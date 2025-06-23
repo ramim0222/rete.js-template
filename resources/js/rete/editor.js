@@ -27,6 +27,26 @@ export function submitDrawerForm(data) {
     if (drawerCallback) {
         drawerCallback(data);
         drawerCallback = null;
+        
+        // Trigger immediate global updates after form submission
+        setTimeout(() => {
+            // Apply all styling functions multiple times to ensure they take effect
+            if (window.applyNodeColors) window.applyNodeColors();
+            if (window.nodeStyle) window.nodeStyle();
+            if (window.handlePorts) window.handlePorts();
+        }, 50);
+        
+        setTimeout(() => {
+            if (window.applyNodeColors) window.applyNodeColors();
+            if (window.nodeStyle) window.nodeStyle();
+            if (window.handlePorts) window.handlePorts();
+        }, 150);
+        
+        setTimeout(() => {
+            if (window.applyNodeColors) window.applyNodeColors();
+            if (window.nodeStyle) window.nodeStyle();
+            if (window.handlePorts) window.handlePorts();
+        }, 300);
     }
     document.getElementById("nodeDrawer").style.right = "-100%";
 }
@@ -38,6 +58,7 @@ class Node extends ClassicPreset.Node {
         this.width = 'auto';
         this.height = 'auto';
         this.label = String(name || "Status Name");
+        this.isNewNode = true;
 
         this.addInput("port", new ClassicPreset.Input(socket));
         this.addOutput("port", new ClassicPreset.Output(socket));
@@ -119,43 +140,113 @@ export async function createEditor(container) {
                             handler: async () => {
                                 openDrawer(async (data) => {
                                     if (!data || !data.name) return;
-
+                        
                                     const node = new Node(
                                         data.name,
                                         data.color || "#aabbcc",
                                         data.description || "",
                                         data.condition || "equals"
                                     );
-
+                        
                                     // Calculate the center of the container
                                     const containerRect = container.getBoundingClientRect();
                                     const centerX = containerRect.width / 2;
                                     const centerY = containerRect.height / 2;
-
+                        
                                     // Position the node in the center
                                     node.position = [centerX - 100, centerY - 120];
-
+                        
+                                    // Add the node to the editor
                                     await editor.addNode(node);
-
-                                    // Wait until node is fully rendered before using its id
-                                    render.addPipe((ctx) => {
-                                        if (ctx.type === "rendered" && ctx.data.type === "node" && ctx.data.payload === node) {
-                                            applyNodeColor(node);
-
-                                    if (window.Livewire?.emit) {
-                                        Livewire.emit("saveTransactionNode", {
-                                            name: data.name,
-                                            color: data.color,
-                                            description: data.description,
-                                            condition: data.condition,
-                                            x: node.position[0],
-                                            y: node.position[1],
-                                            id: node.id,
-                                        });
-                                    }
+                        
+                                    // Multiple attempts to ensure styling is applied
+                                    const applyNewNodeStyling = () => {
+                                        // First, try to find and set the data-node-id
+                                        const nodeElements = document.querySelectorAll('[data-testid="node"]');
+                                        let targetElement = null;
+                                        
+                                        // Find the node element that doesn't have a data-node-id yet
+                                        for (let i = nodeElements.length - 1; i >= 0; i--) {
+                                            const el = nodeElements[i];
+                                            if (!el.dataset.nodeId) {
+                                                el.dataset.nodeId = node.id;
+                                                targetElement = el;
+                                                break;
+                                            }
+                                        }
+                        
+                                        // If we found the element, apply styling immediately
+                                        if (targetElement) {
+                                            // Apply background color directly
+                                            targetElement.style.setProperty('background-color', data.color || "#aabbcc", 'important');
+                                            targetElement.style.setProperty('background', data.color || "#aabbcc", 'important');
+                                            
+                                            // Update title
+                                            const titleEl = targetElement.querySelector('[data-testid="title"]');
+                                            if (titleEl) {
+                                                titleEl.textContent = data.name;
+                                                titleEl.style.setProperty('font-weight', 'bold', 'important');
+                                                titleEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+                                                
+                                                // Apply contrasting text color
+                                                const textColor = getContrastColor(data.color || "#aabbcc");
+                                                titleEl.style.setProperty('color', textColor, 'important');
+                                            }
+                                        }
+                        
+                                        // Apply all global styling functions
+                                        if (window.applyNodeColors) {
+                                            window.applyNodeColors();
+                                        }
+                                        if (window.nodeStyle) {
+                                            window.nodeStyle();
+                                        }
+                                        if (window.handlePorts) {
+                                            window.handlePorts();
+                                        }
+                        
+                                        // Apply node-specific styling
+                                        applyNodeColor(node);
+                                    };
+                        
+                                    // Apply styling with multiple timing attempts
+                                    setTimeout(applyNewNodeStyling, 50);   // Immediate attempt
+                                    setTimeout(applyNewNodeStyling, 150);  // Second attempt
+                                    setTimeout(applyNewNodeStyling, 300);  // Final attempt
+                        
+                                    // Use the render pipe to catch when the node is actually rendered
+                                    const renderHandler = (ctx) => {
+                                        if (ctx.type === "rendered" && 
+                                            ctx.data.type === "node" && 
+                                            ctx.data.payload === node) {
+                                            
+                                            // Apply styling when this specific node is rendered
+                                            setTimeout(() => {
+                                                applyNewNodeStyling();
+                                                
+                                                // Emit to Livewire after successful styling
+                                                if (window.Livewire?.emit) {
+                                                    Livewire.emit("saveTransactionNode", {
+                                                        name: data.name,
+                                                        color: data.color,
+                                                        description: data.description,
+                                                        condition: data.condition,
+                                                        x: node.position[0],
+                                                        y: node.position[1],
+                                                        id: node.id,
+                                                    });
+                                                }
+                                            }, 100);
+                                            
+                                            // Remove this specific handler after use
+                                            render.removePipe(renderHandler);
                                         }
                                         return ctx;
-                                    });
+                                    };
+                                    
+                                    // Add the temporary render handler
+                                    render.addPipe(renderHandler);
+                        
                                 }, false); // Pass false to indicate we're creating
                             }
                         }
@@ -171,6 +262,9 @@ export async function createEditor(container) {
                             key: 'delete',
                             handler: async () => {
                                 try {
+                                    // Get the node identifier before deletion
+                                    const nodeIdentifier = context.id;
+                                    
                                     // Get all connections
                                     const connections = editor.getConnections();
                                     
@@ -183,16 +277,29 @@ export async function createEditor(container) {
                                     
                                     // Remove the node
                                     await editor.removeNode(context.id);
-
+                        
+                                    // Update nodeOrder by removing the deleted node
+                                    if (window.nodeOrder) {
+                                        window.nodeOrder = window.nodeOrder.filter(id => id !== nodeIdentifier);
+                                    }
+                        
                                     // Emit delete event to Livewire if available
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("deleteTransactionNode", {
                                             id: context.id
                                         });
                                     }
-
-                                    // Update the area
+                        
+                                    // Update the area and trigger port management
                                     area.update('node');
+                                    
+                                    // Trigger port management after deletion
+                                    setTimeout(() => {
+                                        if (window.handlePorts) {
+                                            window.handlePorts();
+                                        }
+                                    }, 100);
+                                    
                                 } catch (error) {
                                     console.error('Error deleting node:', error);
                                 }
@@ -207,27 +314,54 @@ export async function createEditor(container) {
                                 document.getElementById('nodeColor').value = context.controls.color.value;
                                 document.getElementById('nodeDesc').value = context.controls.description.value;
                                 document.getElementById('nodeCondition').value = context.controls.condition.value;
-
+                        
                                 // Open drawer in edit mode
                                 openDrawer(async ({ name, color, description, condition }) => {
                                     if (!name) return;
                                     
-                                    // Update the node's controls
-                                    context.controls.name.setValue(name);
-                                    context.controls.color.setValue(color || "#aabbcc");
-                                    context.controls.description.setValue(description || "");
-                                    context.controls.condition.setValue(condition);
-
-                                    // Update the node's label and style
-                                    context.label = name;
-                                    context.style = { backgroundColor: color || "#aabbcc", color: 'white' };
-
-                                    // Force update
-                                    applyNodeColor(context);
+                                    // Update the control values
+                                    if (context.controls.name) {
+                                        context.controls.name.value = name;
+                                        context.controls.name.update?.();
+                                    }
+                        
+                                    if (context.controls.color) {
+                                        context.controls.color.value = color || "#aabbcc";
+                                        context.controls.color.update?.();
+                                    }
                                     
-                                    // Trigger area update
-                                    area.update('node');
-
+                                    if (context.controls.description) {
+                                        context.controls.description.value = description || "";
+                                        context.controls.description.update?.();
+                                    }
+                                    
+                                    if (context.controls.condition) {
+                                        context.controls.condition.value = condition || "";
+                                        context.controls.condition.update?.();
+                                    }
+                        
+                                    // Update the node's label for React rendering
+                                    context.label = name;
+                        
+                                    // Force area update to re-render the React component
+                                    await area.update('node', context.id);
+                                    
+                                    // Apply styling with a delay to ensure React has re-rendered
+                                    setTimeout(() => {
+                                        // Apply node colors using the global function
+                                        if (window.applyNodeColors) {
+                                            window.applyNodeColors();
+                                        }
+                                        
+                                        // Apply node styling using the global function
+                                        if (window.nodeStyle) {
+                                            window.nodeStyle();
+                                        }
+                                        
+                                        // Additional manual styling for immediate feedback
+                                        applyNodeColor(context);
+                                    }, 100);
+                        
                                     // Emit the update event to Livewire
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("saveTransactionNode", {
@@ -240,7 +374,7 @@ export async function createEditor(container) {
                                             id: context.id,
                                         });
                                     }
-                                }, true); // Pass true to indicate we're editing
+                                }, true);
                             }
                         }
                     ]
@@ -258,7 +392,151 @@ export async function createEditor(container) {
 
     render.addPipe((ctx) => {
         if (ctx.type === "rendered" && ctx.data.type === "node") {
-            applyNodeColor(ctx.data.payload);
+            const node = ctx.data.payload;
+            
+            // Immediate styling application - don't wait
+            const immediateApply = () => {
+                // Set data-node-id immediately
+                const nodeElements = document.querySelectorAll('[data-testid="node"]');
+                let targetElement = null;
+                
+                // Find the node element that doesn't have a data-node-id yet
+                for (let i = nodeElements.length - 1; i >= 0; i--) {
+                    const el = nodeElements[i];
+                    if (!el.dataset.nodeId) {
+                        el.dataset.nodeId = node.id;
+                        targetElement = el;
+                        break;
+                    }
+                }
+    
+                // If we have the node controls, apply styling immediately
+                if (node.controls?.color?.value && targetElement) {
+                    // Apply background color
+                    const color = node.controls.color.value;
+                    targetElement.style.setProperty('background-color', color, 'important');
+                    targetElement.style.setProperty('background', color, 'important');
+                    
+                    // Calculate and apply contrasting text color
+                    const textColor = getContrastColor(color);
+                    
+                    // Update title with proper styling
+                    const titleEl = targetElement.querySelector('[data-testid="title"]');
+                    if (titleEl) {
+                        titleEl.textContent = node.controls.name.value || node.label;
+                        titleEl.style.setProperty('color', textColor, 'important');
+                        titleEl.style.setProperty('font-weight', 'bold', 'important');
+                        titleEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+                    }
+                }
+            };
+    
+            // Apply immediately (synchronously)
+            immediateApply();
+            
+            // Also apply with small delays to catch any timing issues
+            setTimeout(() => {
+                applyNodeColor(node);
+                
+                if (window.applyNodeColors) {
+                    window.applyNodeColors();
+                }
+                if (window.nodeStyle) {
+                    window.nodeStyle();
+                }
+                if (window.handlePorts) {
+                    window.handlePorts();
+                }
+            }, 10);
+    
+            // Additional attempt with longer delay
+            setTimeout(() => {
+                applyNodeColor(node);
+                
+                if (window.applyNodeColors) {
+                    window.applyNodeColors();
+                }
+                if (window.nodeStyle) {
+                    window.nodeStyle();
+                }
+                if (window.handlePorts) {
+                    window.handlePorts();
+                }
+            }, 100);
+    
+            // For new nodes, emit to Livewire (keep existing logic)
+            if (node.isNewNode) {
+                setTimeout(() => {
+                    const nodeData = node.data();
+                    if (window.Livewire?.emit) {
+                        Livewire.emit("saveTransactionNode", {
+                            name: nodeData.name,
+                            color: nodeData.color,
+                            description: nodeData.description,
+                            condition: nodeData.condition,
+                            x: node.position[0],
+                            y: node.position[1],
+                            id: node.id,
+                        });
+                    }
+                    // Remove the flag after saving
+                    delete node.isNewNode;
+                }, 200);
+            }
+        }
+        return ctx;
+    });
+    
+    // Enhanced control change listener with port management
+    let updateTimeout;
+    function scheduleNodeUpdate() {
+        clearTimeout(updateTimeout);
+        updateTimeout = setTimeout(() => {
+            if (window.applyNodeColors) {
+                window.applyNodeColors();
+            }
+            if (window.nodeStyle) {
+                window.nodeStyle();
+            }
+            // IMPORTANT: Also trigger port management
+            if (window.handlePorts) {
+                window.handlePorts();
+            }
+        }, 100);
+    }
+    
+    // Listen for any control changes
+    editor.addPipe((ctx) => {
+        if (ctx.type === "controlchange") {
+            const node = ctx.data.node;
+            applyNodeColor(node);
+            scheduleNodeUpdate();
+        }
+        return ctx;
+    });
+    
+    // Add node addition/removal listeners to properly manage ports
+    editor.addPipe((ctx) => {
+        if (ctx.type === "nodeadded" || ctx.type === "noderemoved") {
+            // Schedule port management update when nodes are added or removed
+            setTimeout(() => {
+                if (window.handlePorts) {
+                    window.handlePorts();
+                }
+            }, 100);
+        }
+        return ctx;
+    });
+    
+    // Add connection listeners to update ports when connections change
+    editor.addPipe((ctx) => {
+        if (ctx.type === "connectioncreated" || ctx.type === "connectionremoved") {
+            // Update ports when connections change
+            setTimeout(() => {
+                if (window.handlePorts) {
+                    window.handlePorts();
+                }
+            }, 100);
         }
         return ctx;
     });
