@@ -153,6 +153,33 @@ function serializeNodesForSave(editor) {
         output += "------------------------\n";
     });
 
+    // Add JSON representation at the bottom
+    output += "\nJSON Data:\n";
+    output += "-----------\n";
+    const jsonData = {
+        nodes: nodes.map(node => ({
+            id: node.id,
+            data: node.data(),
+            position: {
+                x: Math.round(node.position[0]),
+                y: Math.round(node.position[1])
+            }
+        })),
+        connections: connections.map(conn => ({
+            id: conn.id,
+            sourceNodeId: conn.source,
+            targetNodeId: conn.target,
+            sourceOutput: conn.sourceOutput,
+            targetInput: conn.targetInput
+        })),
+        metadata: {
+            exportedAt: new Date().toISOString(),
+            totalNodes: nodes.length,
+            totalConnections: connections.length
+        }
+    };
+
+    output += JSON.stringify(jsonData, null, 2);
     return output;
 }
 
