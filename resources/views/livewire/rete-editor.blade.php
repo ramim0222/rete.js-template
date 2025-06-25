@@ -77,7 +77,7 @@
 
     function handlePorts() {
         const nodes = document.querySelectorAll('[data-testid="node"]');
-        
+
         // Only proceed if we have nodes
         if (!nodes.length) return;
 
@@ -100,8 +100,8 @@
 
         nodes.forEach((node) => {
             // Handle input ports
-            const inputPorts = node.querySelectorAll('[data-testid="input-port"]');
-            inputPorts.forEach((input, portIndex) => {
+            const inputSocket = node.querySelectorAll('[data-testid="input-socket"]');
+            inputSocket.forEach((input, portIndex) => {
                 if (!input.id) {
                     input.id = `input-port-${node.id}-${portIndex}-${Date.now()}`;
                 }
@@ -113,9 +113,21 @@
                 }
             });
 
+            //fix height input port
+            const inputPorts = node.querySelectorAll('[data-testid="input-port"]');
+            inputPorts.forEach((input, portIndex) => {
+                if (!input.id) {
+                    input.id = `input-port-${node.id}-${portIndex}-${Date.now()}`;
+                }
+
+                if (node.id === firstNodeId) {
+                    input.style.setProperty('height', '36px', 'important');
+                }
+            });
+
             // Handle output ports
-            const outputPorts = node.querySelectorAll('[data-testid="output-port"]');
-            outputPorts.forEach((output, portIndex) => {
+            const outputSocket = node.querySelectorAll('[data-testid="output-socket"]');
+            outputSocket.forEach((output, portIndex) => {
                 if (!output.id) {
                     output.id = `output-port-${node.id}-${portIndex}-${Date.now()}`;
                 }
@@ -124,6 +136,18 @@
                     output.style.setProperty('display', 'none', 'important');
                 } else {
                     output.style.removeProperty('display');
+                }
+            });
+
+            //output port height fix
+            const outputPort = node.querySelectorAll('[data-testid="output-port"]');
+            outputPort.forEach((output, portIndex) => {
+                if (!output.id) {
+                    output.id = `output-port-${node.id}-${portIndex}-${Date.now()}`;
+                }
+
+                if (node.id === lastNodeId) {
+                    output.style.setProperty('height', '36px', 'important');
                 }
             });
         });
@@ -162,7 +186,7 @@
         // Create a single observer for all changes
         const observer = new MutationObserver(function(mutations) {
             if (isProcessingUpdates) return;
-            
+
             let shouldApply = false;
             for (const mutation of mutations) {
                 if (mutation.type === 'childList' ||

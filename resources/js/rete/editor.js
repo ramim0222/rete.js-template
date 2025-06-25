@@ -27,7 +27,7 @@ export function submitDrawerForm(data) {
     if (drawerCallback) {
         drawerCallback(data);
         drawerCallback = null;
-        
+
         // Trigger immediate global updates after form submission
         setTimeout(() => {
             // Apply all styling functions multiple times to ensure they take effect
@@ -35,13 +35,13 @@ export function submitDrawerForm(data) {
             if (window.nodeStyle) window.nodeStyle();
             if (window.handlePorts) window.handlePorts();
         }, 50);
-        
+
         setTimeout(() => {
             if (window.applyNodeColors) window.applyNodeColors();
             if (window.nodeStyle) window.nodeStyle();
             if (window.handlePorts) window.handlePorts();
         }, 150);
-        
+
         setTimeout(() => {
             if (window.applyNodeColors) window.applyNodeColors();
             if (window.nodeStyle) window.nodeStyle();
@@ -122,6 +122,52 @@ function applyNodeColor(node) {
     }, 50); // Small delay to ensure DOM updates are complete
 }
 
+function serializeNodesForSave(editor) {
+    const nodes = editor.getNodes();
+    const connections = editor.getConnections();
+    let output = "Status Flow Configuration\n";
+    output += "======================\n\n";
+
+    // Add nodes information
+    output += "Nodes:\n";
+    output += "------\n";
+    nodes.forEach(node => {
+        const data = node.data();
+        output += `\nName: ${data.name}\n`;
+        output += `Color: ${data.color}\n`;
+        output += `Description: ${data.description || 'N/A'}\n`;
+        output += `Condition: ${data.condition || 'N/A'}\n`;
+        output += `Position: (${Math.round(node.position[0])}, ${Math.round(node.position[1])})\n`;
+        output += `ID: ${node.id}\n`;
+        output += "------------------------\n";
+    });
+
+    // Add connections information
+    output += "\nConnections:\n";
+    output += "-----------\n";
+    connections.forEach(conn => {
+        const sourceNode = nodes.find(n => n.id === conn.source);
+        const targetNode = nodes.find(n => n.id === conn.target);
+        output += `\nFrom: ${sourceNode ? sourceNode.data().name : 'Unknown'} (ID: ${conn.source})`;
+        output += `\nTo: ${targetNode ? targetNode.data().name : 'Unknown'} (ID: ${conn.target})\n`;
+        output += "------------------------\n";
+    });
+
+    return output;
+}
+
+function downloadAsFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
 export async function createEditor(container) {
     const editor = new NodeEditor();
     const area = new AreaPlugin(container);
@@ -140,31 +186,31 @@ export async function createEditor(container) {
                             handler: async () => {
                                 openDrawer(async (data) => {
                                     if (!data || !data.name) return;
-                        
+
                                     const node = new Node(
                                         data.name,
                                         data.color || "#aabbcc",
                                         data.description || "",
                                         data.condition || "equals"
                                     );
-                        
+
                                     // Calculate the center of the container
                                     const containerRect = container.getBoundingClientRect();
                                     const centerX = containerRect.width / 2;
                                     const centerY = containerRect.height / 2;
-                        
+
                                     // Position the node in the center
                                     node.position = [centerX - 100, centerY - 120];
-                        
+
                                     // Add the node to the editor
                                     await editor.addNode(node);
-                        
+
                                     // Multiple attempts to ensure styling is applied
                                     const applyNewNodeStyling = () => {
                                         // First, try to find and set the data-node-id
                                         const nodeElements = document.querySelectorAll('[data-testid="node"]');
                                         let targetElement = null;
-                                        
+
                                         // Find the node element that doesn't have a data-node-id yet
                                         for (let i = nodeElements.length - 1; i >= 0; i--) {
                                             const el = nodeElements[i];
@@ -174,26 +220,26 @@ export async function createEditor(container) {
                                                 break;
                                             }
                                         }
-                        
+
                                         // If we found the element, apply styling immediately
                                         if (targetElement) {
                                             // Apply background color directly
                                             targetElement.style.setProperty('background-color', data.color || "#aabbcc", 'important');
                                             targetElement.style.setProperty('background', data.color || "#aabbcc", 'important');
-                                            
+
                                             // Update title
                                             const titleEl = targetElement.querySelector('[data-testid="title"]');
                                             if (titleEl) {
                                                 titleEl.textContent = data.name;
                                                 titleEl.style.setProperty('font-weight', 'bold', 'important');
                                                 titleEl.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
-                                                
+
                                                 // Apply contrasting text color
                                                 const textColor = getContrastColor(data.color || "#aabbcc");
                                                 titleEl.style.setProperty('color', textColor, 'important');
                                             }
                                         }
-                        
+
                                         // Apply all global styling functions
                                         if (window.applyNodeColors) {
                                             window.applyNodeColors();
@@ -204,26 +250,26 @@ export async function createEditor(container) {
                                         if (window.handlePorts) {
                                             window.handlePorts();
                                         }
-                        
+
                                         // Apply node-specific styling
                                         applyNodeColor(node);
                                     };
-                        
+
                                     // Apply styling with multiple timing attempts
                                     setTimeout(applyNewNodeStyling, 50);   // Immediate attempt
                                     setTimeout(applyNewNodeStyling, 150);  // Second attempt
                                     setTimeout(applyNewNodeStyling, 300);  // Final attempt
-                        
+
                                     // Use the render pipe to catch when the node is actually rendered
                                     const renderHandler = (ctx) => {
-                                        if (ctx.type === "rendered" && 
-                                            ctx.data.type === "node" && 
+                                        if (ctx.type === "rendered" &&
+                                            ctx.data.type === "node" &&
                                             ctx.data.payload === node) {
-                                            
+
                                             // Apply styling when this specific node is rendered
                                             setTimeout(() => {
                                                 applyNewNodeStyling();
-                                                
+
                                                 // Emit to Livewire after successful styling
                                                 if (window.Livewire?.emit) {
                                                     Livewire.emit("saveTransactionNode", {
@@ -237,17 +283,26 @@ export async function createEditor(container) {
                                                     });
                                                 }
                                             }, 100);
-                                            
+
                                             // Remove this specific handler after use
                                             render.removePipe(renderHandler);
                                         }
                                         return ctx;
                                     };
-                                    
+
                                     // Add the temporary render handler
                                     render.addPipe(renderHandler);
-                        
+
                                 }, false); // Pass false to indicate we're creating
+                            }
+                        },
+                        {
+                            label: 'Save to File',
+                            key: 'save-file',
+                            handler: async () => {
+                                const content = serializeNodesForSave(editor);
+                                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                                downloadAsFile(content, `status-flow-${timestamp}.txt`);
                             }
                         }
                     ]
@@ -264,42 +319,42 @@ export async function createEditor(container) {
                                 try {
                                     // Get the node identifier before deletion
                                     const nodeIdentifier = context.id;
-                                    
+
                                     // Get all connections
                                     const connections = editor.getConnections();
-                                    
+
                                     // Remove all connections associated with this node
                                     for (const connection of connections) {
                                         if (connection.source === context.id || connection.target === context.id) {
                                             await editor.removeConnection(connection.id);
                                         }
                                     }
-                                    
+
                                     // Remove the node
                                     await editor.removeNode(context.id);
-                        
+
                                     // Update nodeOrder by removing the deleted node
                                     if (window.nodeOrder) {
                                         window.nodeOrder = window.nodeOrder.filter(id => id !== nodeIdentifier);
                                     }
-                        
+
                                     // Emit delete event to Livewire if available
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("deleteTransactionNode", {
                                             id: context.id
                                         });
                                     }
-                        
+
                                     // Update the area and trigger port management
                                     area.update('node');
-                                    
+
                                     // Trigger port management after deletion
                                     setTimeout(() => {
                                         if (window.handlePorts) {
                                             window.handlePorts();
                                         }
                                     }, 100);
-                                    
+
                                 } catch (error) {
                                     console.error('Error deleting node:', error);
                                 }
@@ -314,54 +369,54 @@ export async function createEditor(container) {
                                 document.getElementById('nodeColor').value = context.controls.color.value;
                                 document.getElementById('nodeDesc').value = context.controls.description.value;
                                 document.getElementById('nodeCondition').value = context.controls.condition.value;
-                        
+
                                 // Open drawer in edit mode
                                 openDrawer(async ({ name, color, description, condition }) => {
                                     if (!name) return;
-                                    
+
                                     // Update the control values
                                     if (context.controls.name) {
                                         context.controls.name.value = name;
                                         context.controls.name.update?.();
                                     }
-                        
+
                                     if (context.controls.color) {
                                         context.controls.color.value = color || "#aabbcc";
                                         context.controls.color.update?.();
                                     }
-                                    
+
                                     if (context.controls.description) {
                                         context.controls.description.value = description || "";
                                         context.controls.description.update?.();
                                     }
-                                    
+
                                     if (context.controls.condition) {
                                         context.controls.condition.value = condition || "";
                                         context.controls.condition.update?.();
                                     }
-                        
+
                                     // Update the node's label for React rendering
                                     context.label = name;
-                        
+
                                     // Force area update to re-render the React component
                                     await area.update('node', context.id);
-                                    
+
                                     // Apply styling with a delay to ensure React has re-rendered
                                     setTimeout(() => {
                                         // Apply node colors using the global function
                                         if (window.applyNodeColors) {
                                             window.applyNodeColors();
                                         }
-                                        
+
                                         // Apply node styling using the global function
                                         if (window.nodeStyle) {
                                             window.nodeStyle();
                                         }
-                                        
+
                                         // Additional manual styling for immediate feedback
                                         applyNodeColor(context);
                                     }, 100);
-                        
+
                                     // Emit the update event to Livewire
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("saveTransactionNode", {
@@ -393,13 +448,13 @@ export async function createEditor(container) {
     render.addPipe((ctx) => {
         if (ctx.type === "rendered" && ctx.data.type === "node") {
             const node = ctx.data.payload;
-            
+
             // Immediate styling application - don't wait
             const immediateApply = () => {
                 // Set data-node-id immediately
                 const nodeElements = document.querySelectorAll('[data-testid="node"]');
                 let targetElement = null;
-                
+
                 // Find the node element that doesn't have a data-node-id yet
                 for (let i = nodeElements.length - 1; i >= 0; i--) {
                     const el = nodeElements[i];
@@ -409,17 +464,17 @@ export async function createEditor(container) {
                         break;
                     }
                 }
-    
+
                 // If we have the node controls, apply styling immediately
                 if (node.controls?.color?.value && targetElement) {
                     // Apply background color
                     const color = node.controls.color.value;
                     targetElement.style.setProperty('background-color', color, 'important');
                     targetElement.style.setProperty('background', color, 'important');
-                    
+
                     // Calculate and apply contrasting text color
                     const textColor = getContrastColor(color);
-                    
+
                     // Update title with proper styling
                     const titleEl = targetElement.querySelector('[data-testid="title"]');
                     if (titleEl) {
@@ -430,14 +485,14 @@ export async function createEditor(container) {
                     }
                 }
             };
-    
+
             // Apply immediately (synchronously)
             immediateApply();
-            
+
             // Also apply with small delays to catch any timing issues
             setTimeout(() => {
                 applyNodeColor(node);
-                
+
                 if (window.applyNodeColors) {
                     window.applyNodeColors();
                 }
@@ -448,11 +503,11 @@ export async function createEditor(container) {
                     window.handlePorts();
                 }
             }, 10);
-    
+
             // Additional attempt with longer delay
             setTimeout(() => {
                 applyNodeColor(node);
-                
+
                 if (window.applyNodeColors) {
                     window.applyNodeColors();
                 }
@@ -463,7 +518,7 @@ export async function createEditor(container) {
                     window.handlePorts();
                 }
             }, 100);
-    
+
             // For new nodes, emit to Livewire (keep existing logic)
             if (node.isNewNode) {
                 setTimeout(() => {
@@ -486,7 +541,7 @@ export async function createEditor(container) {
         }
         return ctx;
     });
-    
+
     // Enhanced control change listener with port management
     let updateTimeout;
     function scheduleNodeUpdate() {
@@ -504,7 +559,7 @@ export async function createEditor(container) {
             }
         }, 100);
     }
-    
+
     // Listen for any control changes
     editor.addPipe((ctx) => {
         if (ctx.type === "controlchange") {
@@ -514,7 +569,7 @@ export async function createEditor(container) {
         }
         return ctx;
     });
-    
+
     // Add node addition/removal listeners to properly manage ports
     editor.addPipe((ctx) => {
         if (ctx.type === "nodeadded" || ctx.type === "noderemoved") {
@@ -527,7 +582,7 @@ export async function createEditor(container) {
         }
         return ctx;
     });
-    
+
     // Add connection listeners to update ports when connections change
     editor.addPipe((ctx) => {
         if (ctx.type === "connectioncreated" || ctx.type === "connectionremoved") {
