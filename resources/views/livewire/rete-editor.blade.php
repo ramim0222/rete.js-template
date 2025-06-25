@@ -229,8 +229,14 @@
 </script>
 
 
-<div id="info" style="text-align: center">Drag the unconnected node onto the connection between nodes</div>
-<div id="editor" wire:ignore"></div>
+<section id="editor-section" class="h-screen w-full bg-gray-200 flex justify-center items-center">
+
+    <div  class=" rounded-lg shadow-xl overflow-hidden border border-gray-300 w-5/6 h-5/6">
+        <div id="info" class="text-center rounded-md text-gray-700">Drag the unconnected node onto the connection between nodes</div>
+        <div id="editor" class="bg-white rounded-lg" wire:ignore style= "overflow: hidden; touch-action: none;"></div>
+    </div>
+</section>
+
 
 
 @vite('resources/js/rete/main.js')
