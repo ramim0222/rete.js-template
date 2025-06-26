@@ -229,13 +229,20 @@
 </script>
 
 
-<section id="editor-section" class="h-screen w-full bg-gray-200 flex justify-center items-center">
+<section id="editor-section" class=" h-screen w-full bg-gray-200 flex flex-col gap-3 justify-center items-center">
 
     <div  class=" rounded-lg shadow-xl overflow-hidden border border-gray-300 w-5/6 h-5/6">
         <div id="info" class="text-center rounded-md text-gray-700">Drag the unconnected node onto the connection between nodes</div>
         <div id="editor" class="bg-white rounded-lg" wire:ignore style= "overflow: hidden; touch-action: none;"></div>
     </div>
+
+    <div class="flex justify-end gap-3">
+        <button class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-md">Import Node</button>
+        <button class="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-md">Save</button>
+    </div>
+
 </section>
+
 
 
 
