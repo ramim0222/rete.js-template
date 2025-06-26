@@ -80,15 +80,6 @@ export function createContextMenuConfig(editor, area) {
                                     }
                                 }, false);
                             }
-                        },
-                        {
-                            label: 'Save to File',
-                            key: 'save-file',
-                            handler: async () => {
-                                const content = serializeNodesForSave(editor);
-                                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                                downloadAsFile(content, `status-flow-${timestamp}.txt`);
-                            }
                         }
                     ]
                 };

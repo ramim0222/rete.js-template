@@ -37,6 +37,90 @@
 <script>
     let drawerCallback = null;
     let isEditing = false;
+    let editorInstance = null;
+
+    // Add function to set editor instance
+    window.setEditorInstance = function(editor) {
+        editorInstance = editor;
+
+        // Set up save button functionality once we have the editor instance
+        const saveButton = document.getElementById('saveButton');
+        if (saveButton) {
+            saveButton.addEventListener('click', () => {
+                if (editorInstance) {
+                    const nodes = editorInstance.getNodes();
+                    const connections = editorInstance.getConnections();
+                    let output = "Status Flow Configuration\n";
+                    output += "======================\n\n";
+
+                    // Add nodes information
+                    output += "Nodes:\n";
+                    output += "------\n";
+                    nodes.forEach(node => {
+                        const data = node.data();
+                        output += `\nName: ${data.name}\n`;
+                        output += `Color: ${data.color}\n`;
+                        output += `Description: ${data.description || 'N/A'}\n`;
+                        output += `Condition: ${data.condition || 'N/A'}\n`;
+                        output += `Position: (${Math.round(node.position[0])}, ${Math.round(node.position[1])})\n`;
+                        output += `ID: ${node.id}\n`;
+                        output += "------------------------\n";
+                    });
+
+                    // Add connections information
+                    output += "\nConnections:\n";
+                    output += "-----------\n";
+                    connections.forEach(conn => {
+                        const sourceNode = nodes.find(n => n.id === conn.source);
+                        const targetNode = nodes.find(n => n.id === conn.target);
+                        output += `\nFrom: ${sourceNode ? sourceNode.data().name : 'Unknown'} (ID: ${conn.source})`;
+                        output += `\nTo: ${targetNode ? targetNode.data().name : 'Unknown'} (ID: ${conn.target})\n`;
+                        output += "------------------------\n";
+                    });
+
+                    // Add JSON representation at the bottom
+                    output += "\nJSON Data:\n";
+                    output += "-----------\n";
+                    const jsonData = {
+                        nodes: nodes.map(node => ({
+                            id: node.id,
+                            data: node.data(),
+                            position: {
+                                x: Math.round(node.position[0]),
+                                y: Math.round(node.position[1])
+                            }
+                        })),
+                        connections: connections.map(conn => ({
+                            id: conn.id,
+                            sourceNodeId: conn.source,
+                            targetNodeId: conn.target,
+                            sourceOutput: conn.sourceOutput,
+                            targetInput: conn.targetInput
+                        })),
+                        metadata: {
+                            exportedAt: new Date().toISOString(),
+                            totalNodes: nodes.length,
+                            totalConnections: connections.length
+                        }
+                    };
+
+                    output += JSON.stringify(jsonData, null, 2);
+
+                    // Download the file
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const blob = new Blob([output], { type: 'text/plain' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `status-flow-${timestamp}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }
+            });
+        }
+    };
 
     function openDrawer(callback, editing = false) {
         drawerCallback = callback;
@@ -237,8 +321,8 @@
     </div>
 
     <div class="flex justify-end gap-3">
-        <button class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-md">Import Node</button>
-        <button class="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-md">Save</button>
+        <button id="importButton" class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-md">Import Node</button>
+        <button id="saveButton" class="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-md">Save</button>
     </div>
 
 </section>

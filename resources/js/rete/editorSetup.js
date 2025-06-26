@@ -11,6 +11,10 @@ import { createRoot } from 'react-dom/client';
 import { Connection } from './Connection';
 import { applyNodeColor, applyImmediateNodeStyling } from './nodeStyles';
 import { createContextMenuConfig } from './contextMenu';
+import { setupImportModal } from './import-node';
+
+// Store editor instance globally
+let editorInstance = null;
 
 export async function createEditor(container) {
     const editor = new NodeEditor();
@@ -22,6 +26,11 @@ export async function createEditor(container) {
 
     render.addPreset(ReactPresets.classic.setup());
     render.addPreset(ReactPresets.contextMenu.setup());
+
+    // Make editor instance available globally
+    if (window.setEditorInstance) {
+        window.setEditorInstance(editor);
+    }
 
     // Enhanced control change listener with port management
     let updateTimeout;
@@ -162,11 +171,19 @@ export async function createEditor(container) {
                 editor.getNode(connection.target),
                 connection.targetInput
             ));
-            arrange.layout({ applier: animatedApplier });
         }
     });
 
-    return {
-        destroy: () => area.destroy()
-    };
+    // Set up import functionality
+    setupImportModal();
+
+    // Make editor instance globally available
+    window.editorInstance = editor;
+
+    return editor;
+}
+
+// Export the editor instance getter
+export function getEditor() {
+    return editorInstance;
 }
