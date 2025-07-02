@@ -59,10 +59,27 @@ export function setupImportModal() {
         try {
             const jsonData = JSON.parse(jsonInput.value);
 
-            // Get the editor instance
+            // Get the editor instance and area plugin
             const editorInstance = window.editorInstance;
 
-            if (editorInstance) {
+            // Get area plugin from editor - this is the key fix
+            let areaPlugin = null;
+            if (editorInstance && editorInstance.plugins) {
+                // Find the area plugin in the editor's plugins
+                for (const plugin of editorInstance.plugins) {
+                    if (plugin.name === 'area' || plugin instanceof AreaPlugin) {
+                        areaPlugin = plugin;
+                        break;
+                    }
+                }
+            }
+
+            // Alternative way to get area plugin if the above doesn't work
+            if (!areaPlugin && window.areaInstance) {
+                areaPlugin = window.areaInstance;
+            }
+
+            if (editorInstance && areaPlugin) {
                 // Clear existing nodes and connections
                 const existingNodes = editorInstance.getNodes();
                 existingNodes.forEach(node => {
@@ -84,11 +101,15 @@ export function setupImportModal() {
                         // Set node ID
                         node.id = nodeData.id;
 
-                        // Set node position
-                        node.position = [nodeData.position.x, nodeData.position.y];
-
-                        // Add node to editor
+                        // Add node to editor first
                         await editorInstance.addNode(node);
+
+                        // CRITICAL FIX: Use area.translate() to position the node
+                        // This is the proper way to position nodes in Rete.js
+                        await areaPlugin.translate(node.id, {
+                            x: nodeData.position.x,
+                            y: nodeData.position.y
+                        });
 
                         // Apply color styling
                         setTimeout(() => {
@@ -120,12 +141,20 @@ export function setupImportModal() {
                 importModal.classList.remove('flex');
                 jsonInput.value = '';
 
-                // Force a re-render if needed
-                if (editorInstance.view) {
-                    editorInstance.view.update();
-                }
+                // Force area update to ensure everything is rendered correctly
+                await areaPlugin.update('node');
+
+                // Optional: Zoom to fit all imported nodes
+                setTimeout(() => {
+                    if (window.AreaExtensions && window.AreaExtensions.zoomAt) {
+                        window.AreaExtensions.zoomAt(areaPlugin, editorInstance.getNodes());
+                    }
+                }, 200);
+
             } else {
-                alert('Editor instance not found!');
+                alert('Editor instance or area plugin not found!');
+                console.error('Editor instance:', editorInstance);
+                console.error('Area plugin:', areaPlugin);
             }
         } catch (error) {
             console.error('Import error:', error);

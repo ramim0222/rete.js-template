@@ -29,11 +29,15 @@ export function createContextMenuConfig(editor, area) {
                                     const centerX = containerRect.width / 2;
                                     const centerY = containerRect.height / 2;
 
-                                    // Position the node in the center
-                                    node.position = [centerX - 100, centerY - 120];
-
-                                    // Add the node to the editor
+                                    // Add the node to the editor first
                                     await editor.addNode(node);
+
+                                    // CRITICAL FIX: Use area.translate() to position the node properly
+                                    // This is the correct way to position nodes in Rete.js
+                                    await area.translate(node.id, {
+                                        x: centerX - 100,
+                                        y: centerY - 120
+                                    });
 
                                     // Multiple attempts to ensure styling is applied
                                     const applyNewNodeStyling = () => {
@@ -66,6 +70,10 @@ export function createContextMenuConfig(editor, area) {
                                     setTimeout(applyNewNodeStyling, 150);
                                     setTimeout(applyNewNodeStyling, 300);
 
+                                    // Get the final position from the area plugin for Livewire
+                                    const nodeView = area.nodeViews.get(node.id);
+                                    const finalPosition = nodeView ? nodeView.position : { x: centerX - 100, y: centerY - 120 };
+
                                     // Emit to Livewire after successful styling
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("saveTransactionNode", {
@@ -73,8 +81,8 @@ export function createContextMenuConfig(editor, area) {
                                             color: data.color,
                                             description: data.description,
                                             condition: data.condition,
-                                            x: node.position[0],
-                                            y: node.position[1],
+                                            x: finalPosition.x,
+                                            y: finalPosition.y,
                                             id: node.id,
                                         });
                                     }
@@ -181,6 +189,10 @@ export function createContextMenuConfig(editor, area) {
                                         applyNodeColor(context);
                                     }, 100);
 
+                                    // Get the current position from the area plugin for Livewire
+                                    const nodeView = area.nodeViews.get(context.id);
+                                    const currentPosition = nodeView ? nodeView.position : { x: 0, y: 0 };
+
                                     // Emit the update event to Livewire
                                     if (window.Livewire?.emit) {
                                         Livewire.emit("saveTransactionNode", {
@@ -188,8 +200,8 @@ export function createContextMenuConfig(editor, area) {
                                             color,
                                             description,
                                             condition,
-                                            x: context.position[0],
-                                            y: context.position[1],
+                                            x: currentPosition.x,
+                                            y: currentPosition.y,
                                             id: context.id,
                                         });
                                     }

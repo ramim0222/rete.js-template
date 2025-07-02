@@ -13,8 +13,9 @@ import { applyNodeColor, applyImmediateNodeStyling } from './nodeStyles';
 import { createContextMenuConfig } from './contextMenu';
 import { setupImportModal } from './import-node';
 
-// Store editor instance globally
+// Store editor and area instances globally
 let editorInstance = null;
+let areaInstance = null;
 
 export async function createEditor(container) {
     const editor = new NodeEditor();
@@ -27,7 +28,14 @@ export async function createEditor(container) {
     render.addPreset(ReactPresets.classic.setup());
     render.addPreset(ReactPresets.contextMenu.setup());
 
-    // Make editor instance available globally
+    // Make both editor and area instances available globally
+    editorInstance = editor;
+    areaInstance = area;
+
+    // Store globally for import function access
+    window.editorInstance = editor;
+    window.areaInstance = area;
+
     if (window.setEditorInstance) {
         window.setEditorInstance(editor);
     }
@@ -177,13 +185,28 @@ export async function createEditor(container) {
     // Set up import functionality
     setupImportModal();
 
-    // Make editor instance globally available
-    window.editorInstance = editor;
+    // Make AreaExtensions globally available for zoom functions
+    window.AreaExtensions = AreaExtensions;
 
-    return editor;
+    return {
+        editor,
+        area,
+        destroy: () => {
+            area.destroy();
+            // Clear global references
+            editorInstance = null;
+            areaInstance = null;
+            window.editorInstance = null;
+            window.areaInstance = null;
+        }
+    };
 }
 
-// Export the editor instance getter
+// Export the instances getters
 export function getEditor() {
     return editorInstance;
+}
+
+export function getArea() {
+    return areaInstance;
 }
