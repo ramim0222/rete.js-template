@@ -1,5 +1,6 @@
 // Function to create and handle the import modal
 import { Node } from '../Node';
+import { Connection } from '../Connection';
 import { applyNodeColor } from '../nodeStyles';
 
 export function setupImportModal() {
@@ -116,23 +117,55 @@ export function setupImportModal() {
                             applyNodeColor(node);
                         }, 100);
                     }
+
+                    // CRITICAL: Wait for all nodes to be fully rendered before adding connections
+                    // This ensures that socket positions are properly calculated
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    // Force update all nodes to ensure proper DOM rendering
+                    for (const nodeData of jsonData.nodes) {
+                        await areaPlugin.update('node', nodeData.id);
+                    }
+
+                    // Additional wait to ensure socket positions are calculated
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
 
-                // Import connections after all nodes are created
+                // Import connections after all nodes are fully rendered and positioned
                 if (jsonData.connections) {
                     for (const conn of jsonData.connections) {
                         const sourceNode = editorInstance.getNode(conn.sourceNodeId);
                         const targetNode = editorInstance.getNode(conn.targetNodeId);
 
                         if (sourceNode && targetNode) {
-                            await editorInstance.addConnection({
-                                id: conn.id,
-                                source: conn.sourceNodeId,
-                                sourceOutput: conn.sourceOutput,
-                                target: conn.targetNodeId,
-                                targetInput: conn.targetInput
-                            });
+                            // Create connection using the Connection class to ensure proper typing
+                            const connection = new Connection(
+                                sourceNode,
+                                conn.sourceOutput,
+                                targetNode,
+                                conn.targetInput
+                            );
+
+                            // Set the connection ID if provided
+                            if (conn.id) {
+                                connection.id = conn.id;
+                            }
+
+                            // Add the connection
+                            await editorInstance.addConnection(connection);
+
+                            // Force update the connection rendering
+                            await areaPlugin.update('connection', connection.id);
                         }
+                    }
+
+                    // Final update to ensure all connections are properly aligned
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // Update all connections one more time to fix any alignment issues
+                    const connections = editorInstance.getConnections();
+                    for (const connection of connections) {
+                        await areaPlugin.update('connection', connection.id);
                     }
                 }
 
@@ -143,13 +176,14 @@ export function setupImportModal() {
 
                 // Force area update to ensure everything is rendered correctly
                 await areaPlugin.update('node');
+                await areaPlugin.update('connection');
 
-                // Optional: Zoom to fit all imported nodes
+                // Optional: Zoom to fit all imported nodes with additional delay
                 setTimeout(() => {
                     if (window.AreaExtensions && window.AreaExtensions.zoomAt) {
                         window.AreaExtensions.zoomAt(areaPlugin, editorInstance.getNodes());
                     }
-                }, 200);
+                }, 500);
 
             } else {
                 alert('Editor instance or area plugin not found!');
