@@ -81,7 +81,7 @@
             // Handle hex colors (with or without #)
             if (color.startsWith('#') || /^[0-9A-Fa-f]{3}$/.test(color) || /^[0-9A-Fa-f]{6}$/.test(color)) {
                 return hexToRgb(color);
-            } 
+            }
             // Handle rgb/rgba colors
             else if (color.startsWith('rgb')) {
                 const matches = color.match(/\d+/g);
@@ -92,7 +92,7 @@
                         b: parseInt(matches[2])
                     };
                 }
-            } 
+            }
             // Handle named colors
             else {
                 try {
@@ -102,7 +102,7 @@
                     document.body.appendChild(temp);
                     const computedColor = window.getComputedStyle(temp).color;
                     document.body.removeChild(temp);
-                    
+
                     const matches = computedColor.match(/\d+/g);
                     if (matches && matches.length >= 3) {
                         return {
@@ -115,7 +115,7 @@
                     console.error('Error parsing named color:', e);
                 }
             }
-            
+
             // Fallback to default color if parsing fails
             console.warn('Could not parse color:', color, 'using default');
             return { r: 170, g: 187, b: 204 };
@@ -135,24 +135,24 @@
 
         function isValidColor(color) {
             if (!color) return false;
-            
+
             // Check hex format
             if (color.startsWith('#')) {
                 const hex = color.substring(1);
                 return /^[0-9A-Fa-f]{3}$/.test(hex) || /^[0-9A-Fa-f]{6}$/.test(hex);
             }
-            
+
             // Check if it's a hex without #
             if (/^[0-9A-Fa-f]{3}$/.test(color) || /^[0-9A-Fa-f]{6}$/.test(color)) {
                 return true;
             }
-            
+
             // Check rgb format
             if (color.startsWith('rgb')) {
                 return /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/.test(color) ||
                     /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/.test(color);
             }
-            
+
             // For named colors, try to parse them
             try {
                 const temp = document.createElement('div');
@@ -171,7 +171,7 @@
             const applyImmediate = () => {
                 // Try multiple selectors to find the node element
                 let el = document.querySelector(`[data-node-id="${node.id}"]`);
-                
+
                 if (!el) {
                     // Fallback: find by checking all nodes and match by position or other criteria
                     const allNodes = document.querySelectorAll('[data-testid="node"]');
@@ -184,18 +184,18 @@
                         }
                     }
                 }
-                
+
                 if (el && node.controls?.color?.value) {
                     const color = node.controls.color.value;
-                    
+
                     // Validate color before applying
                     if (!isValidColor(color)) {
                         console.warn('Invalid color detected:', color, 'for node:', node.id);
                         return false;
                     }
-                    
+
                     const textColor = getContrastColor(color);
-                    
+
                     // Apply background color with !important to override existing styles
                     el.style.setProperty('background-color', color, 'important');
                     el.style.setProperty('background', color, 'important');
@@ -283,6 +283,15 @@
             titles.forEach(title => {
                 title.style.setProperty('font-weight', 'bold', 'important');
                 title.style.setProperty('font-family', 'Roboto, sans-serif', 'important');
+
+                // Get the background color from the parent node and set contrasting text color
+                const nodeDiv = title.closest('[data-testid="node"]');
+                if (nodeDiv) {
+                    const backgroundColor = window.getComputedStyle(nodeDiv).backgroundColor;
+                    title.style.setProperty('color', getContrastColor(backgroundColor), 'important');
+                } else {
+                    title.style.setProperty('color', '#FFFFFF', 'important');
+                }
             });
 
             // Assign unique IDs to nodes
@@ -369,7 +378,7 @@
 
         function handlePorts() {
             const nodes = document.querySelectorAll('[data-testid="node"]');
-            
+
             if (nodes.length === 0) return;
 
             // Update node order list with any new nodes
@@ -377,10 +386,10 @@
                 if (!node.id) {
                     node.id = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 }
-                
+
                 // Use data-node-id if available, fallback to element id
                 const nodeIdentifier = node.dataset.nodeId || node.id;
-                
+
                 if (!nodeOrder.includes(nodeIdentifier)) {
                     nodeOrder.push(nodeIdentifier);
                 }
@@ -408,7 +417,7 @@
 
             nodes.forEach((node) => {
                 const nodeIdentifier = node.dataset.nodeId || node.id;
-                
+
                 // Handle input ports
                 const inputPorts = node.querySelectorAll('[data-testid="input-port"]');
                 inputPorts.forEach((input, portIndex) => {
@@ -456,44 +465,44 @@
             const observer = new MutationObserver(function(mutations) {
                 let shouldApply = false;
                 let shouldHandlePorts = false;
-                
+
                 mutations.forEach(function(mutation) {
                     if (mutation.type === 'childList') {
                         // Check if nodes were added or removed
                         const addedNodes = Array.from(mutation.addedNodes);
                         const removedNodes = Array.from(mutation.removedNodes);
-                        
-                        const hasNodeChanges = addedNodes.some(node => 
+
+                        const hasNodeChanges = addedNodes.some(node =>
                             node.nodeType === 1 && (
                                 node.hasAttribute?.('data-testid') ||
                                 node.querySelector?.('[data-testid="node"]')
                             )
-                        ) || removedNodes.some(node => 
+                        ) || removedNodes.some(node =>
                             node.nodeType === 1 && (
                                 node.hasAttribute?.('data-testid') ||
                                 node.querySelector?.('[data-testid="node"]')
                             )
                         );
-                        
+
                         if (hasNodeChanges) {
                             shouldApply = true;
                             shouldHandlePorts = true;
                         }
-                    } else if (mutation.type === 'attributes' && 
-                            (mutation.attributeName === 'data-testid' || 
+                    } else if (mutation.type === 'attributes' &&
+                            (mutation.attributeName === 'data-testid' ||
                                 mutation.attributeName === 'data-node-id')) {
                         shouldApply = true;
                         shouldHandlePorts = true;
                     }
                 });
-                
+
                 if (shouldApply) {
                     setTimeout(() => {
                         applyNodeColors();
                         nodeStyle();
                     }, 50);
                 }
-                
+
                 if (shouldHandlePorts) {
                     setTimeout(() => {
                         handlePorts();
