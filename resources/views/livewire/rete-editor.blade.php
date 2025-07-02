@@ -46,8 +46,12 @@
         // Set up save button functionality once we have the editor instance
         const saveButton = document.getElementById('saveButton');
         if (saveButton) {
-            saveButton.addEventListener('click', () => {
-                if (editorInstance) {
+            // Remove any existing event listeners by cloning the button
+            saveButton.replaceWith(saveButton.cloneNode(true));
+            const newSaveButton = document.getElementById('saveButton');
+
+            newSaveButton.addEventListener('click', () => {
+                if (editorInstance && window.areaInstance) {
                     const nodes = editorInstance.getNodes();
                     const connections = editorInstance.getConnections();
                     let output = "Status Flow Configuration\n";
@@ -58,11 +62,16 @@
                     output += "------\n";
                     nodes.forEach(node => {
                         const data = node.data();
+
+                        // CRITICAL FIX: Get position from area plugin, not node.position
+                        const nodeView = window.areaInstance.nodeViews.get(node.id);
+                        const position = nodeView ? nodeView.position : { x: 0, y: 0 };
+
                         output += `\nName: ${data.name}\n`;
                         output += `Color: ${data.color}\n`;
                         output += `Description: ${data.description || 'N/A'}\n`;
                         output += `Condition: ${data.condition || 'N/A'}\n`;
-                        output += `Position: (${Math.round(node.position[0])}, ${Math.round(node.position[1])})\n`;
+                        output += `Position: (${Math.round(position.x)}, ${Math.round(position.y)})\n`;
                         output += `ID: ${node.id}\n`;
                         output += "------------------------\n";
                     });
@@ -82,14 +91,20 @@
                     output += "\nJSON Data:\n";
                     output += "-----------\n";
                     const jsonData = {
-                        nodes: nodes.map(node => ({
-                            id: node.id,
-                            data: node.data(),
-                            position: {
-                                x: Math.round(node.position[0]),
-                                y: Math.round(node.position[1])
-                            }
-                        })),
+                        nodes: nodes.map(node => {
+                            // CRITICAL FIX: Get position from area plugin for JSON export
+                            const nodeView = window.areaInstance.nodeViews.get(node.id);
+                            const position = nodeView ? nodeView.position : { x: 0, y: 0 };
+
+                            return {
+                                id: node.id,
+                                data: node.data(),
+                                position: {
+                                    x: Math.round(position.x),
+                                    y: Math.round(position.y)
+                                }
+                            };
+                        }),
                         connections: connections.map(conn => ({
                             id: conn.id,
                             sourceNodeId: conn.source,
@@ -117,6 +132,13 @@
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
+
+                    console.log('File saved successfully!');
+                } else {
+                    console.error('Editor instance or area instance not found');
+                    console.error('editorInstance:', editorInstance);
+                    console.error('window.areaInstance:', window.areaInstance);
+                    alert('Error: Editor not properly initialized. Please refresh the page and try again.');
                 }
             });
         }
@@ -164,6 +186,11 @@
 
         // Only proceed if we have nodes
         if (!nodes.length) return;
+
+        // Initialize nodeOrder if it doesn't exist
+        if (typeof nodeOrder === 'undefined') {
+            window.nodeOrder = [];
+        }
 
         // Update node order list with any new nodes
         nodes.forEach((node) => {
@@ -237,6 +264,9 @@
         });
     }
 
+    // Make handlePorts globally available
+    window.handlePorts = handlePorts;
+
     // Debounce function to limit how often we update
     function debounce(func, wait) {
         let timeout;
@@ -251,8 +281,18 @@
     }
 
     // Debounced versions of our update functions
-    const debouncedApplyColors = debounce(applyNodeColors, 250);
-    const debouncedNodeStyle = debounce(nodeStyle, 250);
+    const debouncedApplyColors = debounce(() => {
+        if (typeof applyNodeColors === 'function') {
+            applyNodeColors();
+        }
+    }, 250);
+
+    const debouncedNodeStyle = debounce(() => {
+        if (typeof nodeStyle === 'function') {
+            nodeStyle();
+        }
+    }, 250);
+
     const debouncedHandlePorts = debounce(handlePorts, 250);
 
     // Track if we're currently processing updates
@@ -260,6 +300,11 @@
 
     // Apply colors when page loads
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize nodeOrder
+        if (typeof window.nodeOrder === 'undefined') {
+            window.nodeOrder = [];
+        }
+
         // Initial application with a slight delay to ensure DOM is ready
         setTimeout(() => {
             debouncedApplyColors();
